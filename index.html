@@ -201,6 +201,10 @@
           <h1>情绪气象台</h1>
           <p class="sub">你的情绪，其实一直有天气<br>花两分钟，看看今天你是什么天气</p>
         </div>
+        <div class="hook" style="margin:-4px 0 16px;text-align:center;">
+          <p style="font-size:15px;font-weight:700;color:var(--ink);margin:0 0 4px;">今天的心情，和哪群人的天空最像？</p>
+          <p style="font-size:13px;color:var(--ink-soft);margin:0;">凭密钥入场 · 8 题测出专属天气 · 还能看看今天谁和你心情最像</p>
+        </div>
         <div class="intro-meta">
           <span class="meta-pill"><i></i>8 道题</span>
           <span class="meta-pill"><i></i>约 2 分钟</span>
@@ -210,13 +214,13 @@
           <label for="key">测评密钥</label>
           <div class="key-input">
             <input id="key" type="text" placeholder="请输入下单获得的密钥" autocomplete="off" autocapitalize="characters" spellcheck="false">
-            <button class="btn" id="btn-enter">开始</button>
+            <button class="btn" id="btn-enter">我同意并开始测试</button>
           </div>
-          <p class="key-hint">示例：下单后会自动收到密钥，凭它进入测评。</p>
+          <p class="key-hint">下单后会自动收到密钥，凭它解锁测评；点击「我同意并开始测试」即视为同意，无额外弹窗。</p>
           <p class="key-err" id="key-err"></p>
         </div>
       </div>
-      <p class="foot-note">情绪气象台 · 仅供自我探索与娱乐，非专业心理评估。你的答案仅在本机用于生成结果，不会上传或存储；为生成个性化题目，我们会把「身份」发送给第三方 AI（DeepSeek）用于出题，不用于训练。测评后可在结果页随时清除数据。 <button class="foot-link" id="btn-privacy" type="button">隐私政策</button></p>
+      <p class="foot-note">情绪气象台 · 仅供自我探索与娱乐，非专业心理评估。你的答案仅在本机用于生成结果；为生成个性化题目，我们会把「身份」发送给第三方 AI（DeepSeek）出题，不用于训练；测评结果（身份、情绪温度、天气）将匿名用于"相似人群匹配"，不对外展示个人明细。测评后可在结果页随时清除数据。 <button class="foot-link" id="btn-privacy" type="button">隐私政策</button></p>
     </section>
 
     <!-- ===== 视图：身份选择 ===== -->
@@ -256,7 +260,11 @@
           <span class="qnum" id="qnum">第 1 题 · 共 8 题</span>
           <button class="back" id="btn-back" aria-label="返回上一步">‹ 上一步</button>
         </div>
-        <div class="progress"><div class="progress-fill" id="progress"></div></div>
+        <div class="sky-progress" style="margin:8px 0 2px;display:flex;align-items:center;gap:8px;">
+          <span id="sky-icon" style="display:inline-flex;width:22px;height:22px;color:#7c93b5;flex:none;transition:color .3s;"></span>
+          <div class="progress" style="flex:1;margin:0;"><div class="progress-fill" id="progress"></div></div>
+          <span id="sky-label" style="font-size:12px;color:var(--ink-soft);flex:none;white-space:nowrap;">多云</span>
+        </div>
         <div class="q-box" id="q-box">
           <div class="q-badge" id="q-badge">心情采样</div>
           <h2 class="q-title" id="q-title"></h2>
@@ -296,13 +304,17 @@
           <button class="btn ghost" id="btn-again">再测一次</button>
         </div>
         <p class="result-note" id="result-note"></p>
+        <div id="similar-box" style="display:none;margin:12px 0 6px;background:linear-gradient(135deg,rgba(95,168,232,.10),rgba(143,208,240,.16));border:1px dashed rgba(95,168,232,.45);border-radius:16px;padding:12px 14px;">
+          <div style="font-size:13px;font-weight:700;color:var(--ink);margin-bottom:4px;">今天，谁和你心情最像？</div>
+          <div id="similar-text" style="font-size:13px;color:var(--ink-soft);line-height:1.7;"></div>
+        </div>
         <p class="result-disclaimer">仅供自我探索与娱乐，非专业心理评估；如有情绪困扰，请向亲友倾诉，或咨询专业心理机构、拨打心理援助热线。</p>
         <div class="erase-row"><button class="link-btn" id="btn-erase-data">清除我的测评数据</button></div>
 
         <div class="invite-box" id="invite-box">
           <div class="invite-head">
             <span class="invite-title">邀请朋友，看看 TA 是什么天气</span>
-            <span class="invite-sub">专属邀请海报已按你的天气生成</span>
+            <span class="invite-sub">专属邀请海报已生成；好友完成测评，你返 <b>1 元</b>（下次下单抵扣）</span>
           </div>
           <canvas id="invite-canvas" class="invite-canvas" width="600" height="900" aria-label="专属邀请海报"></canvas>
           <div class="invite-actions">
@@ -334,9 +346,9 @@
       body:JSON.stringify({key:cleaned,device_id:DEVICE_ID})
     }).then(function(r){return r.json();}).then(function(d){
       if(d&&d.ok){
-        // 校验成功后只保留短期会话票据，不再持有明文密钥
-        try{sessionStorage.setItem('mw_ticket',d.ticket);}catch(e){}
-        return {ok:true,ticket:d.ticket};
+        // 校验成功后只保留短期会话票据，不再持有明文密钥；hash 仅用于分享邀请定位
+        try{sessionStorage.setItem('mw_ticket',d.ticket);if(d.hash)sessionStorage.setItem('mw_hash',d.hash);}catch(e){}
+        return {ok:true,ticket:d.ticket,hash:d.hash||''};
       }
       var map={invalid:'密钥无效，请检查后重试',used:'该密钥已使用过（一码一用），请重新购买',disabled:'该密钥已停用',no_key:'请输入测评密钥',bad_body:'密钥格式不正确，请检查后重试',expired:'该密钥已过期，请重新购买',device_limit:'该密钥已绑定过多设备，请使用已绑定设备',rate_limited:'尝试过于频繁，请稍后再试'};
       return {ok:false,msg:(d&&(map[d.code]||d.message))||'密钥无效，请检查后重试'};
@@ -400,12 +412,12 @@
   var CONSENT_VERSION='v1';
   var PRIVACY_HTML='<h4>隐私政策</h4>'+
     '<p><b>处理者</b>：本页面为「情绪气象台」测评产品（GitHub Pages 托管）。</p>'+
-    '<p><b>我们收集什么</b>：仅当你在测评时，我们会把你选择的「身份」（如：程序员）发送给第三方 AI（DeepSeek，位于中国境外）用于生成个性化题目。你的测评<b>答案仅在你本机</b>用于计算天气结果，不会上传或存储。</p>'+
-    '<p><b>用途</b>：用于向你提供测评服务（生成题目、得出结果卡）。</p>'+
+    '<p><b>我们收集什么</b>：仅当你在测评时，我们会把你选择的「身份」（如：程序员）发送给第三方 AI（DeepSeek，位于中国境外）用于生成个性化题目；并在得出结果后，将你的<b>测评结果（身份、情绪温度、天气类型）匿名写入后端</b>，用于为你匹配"今天心情相似的人群"（仅展示人数、共性身份与温度区间，不对外展示个人明细）。你的测评<b>答案仅在你本机</b>用于计算天气结果，不会上传或存储。</p>'+
+    '<p><b>用途</b>：用于向你提供测评服务（生成题目、得出结果卡、匹配相似人群）。</p>'+
     '<p><b>不用于训练</b>：你发送的身份信息仅用于本次出题，不用于训练模型，也不作其他用途。</p>'+
-    '<p><b>存储与留存</b>：后端仅记录密钥使用状态与设备绑定关系，不保存你的测评答案。密钥为一次性使用，使用后即失效。</p>'+
-    '<p><b>第三方与跨境</b>：出题请求由第三方 AI（DeepSeek）处理，可能涉及向境外传输「身份」这一项信息；你可在进入测评前选择不同意，则不会发送。</p>'+
-    '<p><b>你的权利</b>：你有权要求删除与本次测评相关的设备绑定记录，可在测评结果页点击「清除我的测评数据」；清除后需重新输入密钥。</p>'+
+    '<p><b>存储与留存</b>：后端记录密钥使用状态、设备绑定关系，以及用于相似人群匹配的匿名测评结果；不保存你的测评答案明细。密钥为一次性使用，使用后即失效。</p>'+
+    '<p><b>第三方与跨境</b>：出题请求由第三方 AI（DeepSeek）处理，可能涉及向境外传输「身份」这一项信息；点击「我同意并开始测试」即表示同意，若不点击则不进入测评、不会发送。</p>'+
+    '<p><b>你的权利</b>：你有权要求删除与本次测评相关的设备绑定记录与匿名结果，可在测评结果页点击「清除我的测评数据」；清除后需重新输入密钥。</p>'+
     '<p><b>未成年人</b>：本产品面向成年人，未成年人应在监护人同意下使用。</p>'+
     '<p><b>联系</b>：如对个人信息处理有疑问或需行使权利，可在测评结果页使用「清除我的测评数据」入口。</p>';
   var _privacyModal;
@@ -565,9 +577,9 @@
   };
 
   /* ===== 状态与路由 ===== */
-  var state={route:'intro',answers:[],current:0,questions:QUESTIONS,identity:'',retakes:0,ticket:''};
-  // 恢复会话票据（页面刷新后仍可继续，无需重新输密钥）
-  (function(){try{var t=getTicket();if(t){state.ticket=t;}}catch(e){}})();
+  var state={route:'intro',answers:[],current:0,questions:QUESTIONS,identity:'',retakes:0,ticket:'',hash:''};
+  // 恢复会话票据 + 邀请 hash（页面刷新后仍可继续，无需重新输密钥）
+  (function(){try{var t=getTicket();if(t){state.ticket=t;}var h=(function(){try{return sessionStorage.getItem('mw_hash')||'';}catch(e){return '';}})();if(h){state.hash=h;}}catch(e){}})();
   var RETRY_LIMIT=1; // 再测上限：初始 1 次 + 最多再测 1 次
   var views={intro:document.getElementById('view-intro'),identity:document.getElementById('view-identity'),quiz:document.getElementById('view-quiz'),result:document.getElementById('view-result')};
   function go(r){
@@ -584,8 +596,14 @@
     if(!k.trim()){showKeyErr('请输入测评密钥');return;}
     btnEnter.disabled=true;btnEnter.textContent='校验中…';
     verifyKey(k).then(function(res){
-      btnEnter.disabled=false;btnEnter.textContent='开始';
-      if(res.ok){state.ticket=res.ticket;state.identity='';ensureConsent(function(){openIdentity();});}else{showKeyErr(res.msg||'密钥无效');}
+      btnEnter.disabled=false;btnEnter.textContent='我同意并开始测试';
+      if(res.ok){
+        // 一键同意进入：验证通过即记录同意留痕并进入身份页（不再单独弹同意窗，少一道门槛）
+        state.ticket=res.ticket;if(res.hash)state.hash=res.hash;
+        state.identity='';
+        recordConsent();
+        openIdentity();
+      }else{showKeyErr(res.msg||'密钥无效');}
     });
   });
   function showKeyErr(m){keyErr.textContent=m;keyErr.style.display='block';}
@@ -758,12 +776,26 @@
 
   /* ===== 答题 ===== */
   function startQuiz(){state.answers=[];state.current=0;go('quiz');renderQuestion();}
+  /* ===== 答题天气渐变：随答题进度 多云→阴→云开→放晴 ===== */
+  var SKY_LABELS=[
+    {label:'多云',icon:'sky'},{label:'多云',icon:'sky'},
+    {label:'转阴',icon:'mist'},{label:'阴天',icon:'mist'},
+    {label:'云开',icon:'sky'},{label:'微晴',icon:'sky'},
+    {label:'转晴',icon:'sun'},{label:'放晴',icon:'sun'}
+  ];
+  function updateSky(idx,total){
+    var s=SKY_LABELS[Math.min(idx,SKY_LABELS.length-1)]||SKY_LABELS[0];
+    var icon=document.getElementById('sky-icon'),label=document.getElementById('sky-label');
+    if(icon){icon.innerHTML=svg(s.icon);icon.style.color=idx>=6?'#f2b23c':(idx>=3?'#5fa8e8':'#8aa1b8');}
+    if(label)label.textContent=s.label;
+  }
   function renderQuestion(){
     var q=state.questions[state.current];
     document.getElementById('qnum').textContent='第 '+(state.current+1)+' 题 · 共 '+state.questions.length+' 题';
     document.getElementById('q-badge').textContent=q.badge;
     document.getElementById('q-title').textContent=q.title;
     document.getElementById('progress').style.width=(state.current/QUESTIONS.length*100)+'%';
+    updateSky(state.current,state.questions.length);
     var box=document.getElementById('q-box');box.style.animation='none';void box.offsetWidth;box.style.animation='qIn .35s ease';
     var optBox=document.getElementById('options');optBox.innerHTML='';
     q.options.forEach(function(opt,idx){
@@ -811,11 +843,40 @@
     document.getElementById('result-note').textContent='天气卡已生成，可保存分享，也可邀请朋友测 TA 的天气。';
     updateRetakeUI();
     window.__moodShare=w.share;
-    window.__inviteText=(state.identity?'作为'+state.identity+'，我':'我')+'测出了「'+w.type+'」，你是什么天气？8题2分钟，来测你的心情天气 👉 '+INVITE_URL;
+    window.__inviteText=(state.identity?'作为'+state.identity+'，我':'我')+'测出了「'+w.type+'」，你是什么天气？8题2分钟，来测你的心情天气 👉 '+inviteUrl();
     go('result');
     var fill=document.getElementById('pbar-fill');fill.style.width='0%';
     setTimeout(function(){fill.style.width='100%';},100);
     drawInvitePoster(topKey,w);
+    submitResult(state.identity,parseInt(w.temp,10),topKey);
+  }
+
+  /* ===== 结果落库 + 相似人群 + 邀请返现 ===== */
+  // 邀请链接：带分享者 key_hash（hash），好友打开即进入"被邀请"链路
+  function inviteUrl(){
+    var base='https://yangchangling.github.io/mood-weather/';
+    return (state.hash)?(base+'?inv='+encodeURIComponent(state.hash)):base;
+  }
+  // 读取当前地址栏的邀请码（好友从分享链接进入时携带）
+  function readInvCode(){
+    try{var m=location.search.match(/[?&]inv=([^&]+)/);return m?decodeURIComponent(m[1]).slice(0,64):'';}catch(e){return '';}
+  }
+  function submitResult(identity,temp,resultKey){
+    fetch(SUPABASE_URL+'/functions/v1/submit-result',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','apikey':SUPABASE_ANON,'Authorization':'Bearer '+SUPABASE_ANON},
+      body:JSON.stringify({identity:identity,temp:temp,result_key:resultKey,inv:readInvCode(),ticket:getTicket(),device_id:DEVICE_ID})
+    }).then(function(r){return r.json();}).then(function(d){
+      if(d&&d.ok){
+        if(d.rewarded)toast('好友已完成测评，你获得 1 元返现（下次下单抵扣）');
+        var sim=d.similar;
+        if(sim&&sim.count>0){
+          var box=document.getElementById('similar-box'),txt=document.getElementById('similar-text');
+          if(box)box.style.display='block';
+          if(txt)txt.textContent='今天和你心情最像的有 '+sim.count+' 人'+(sim.top_identity?('，其中最多的是「'+sim.top_identity+'」'):'')+(typeof sim.temp_min==='number'?'，情绪温度集中在 '+sim.temp_min+'°C ~ '+sim.temp_max+'°C':'')+'。';
+        }
+      }else if(d&&d.code==='invalid_key'){clearTicket();go('intro');}
+    }).catch(function(){});
   }
 
   /* ===== 再测 / 分享 ===== */
@@ -845,8 +906,7 @@
     setTimeout(function(){t.style.opacity='0';t.style.transition='opacity .3s';setTimeout(function(){t.remove();},300);},1800);
   }
 
-  /* ===== 裂变邀请海报（Canvas） ===== */
-  var INVITE_URL='https://yangchangling.github.io/mood-weather/';
+  /* ===== 裂变邀请海报（Canvas）；链接动态带邀请码 inviteUrl() ===== */
   var POSTER_GRAD={
     sun:['#F2B23C','#FAD98A'],sky:['#5FB0E6','#BDE4F5'],mist:['#A9BDD2','#E9EFF6'],
     rain:['#5D86C9','#A9C4EC'],storm:['#4C5A9E','#8A8FC8'],
@@ -886,7 +946,7 @@
       ctx.fillStyle=inkSoft;ctx.font='500 26px sans-serif';ctx.fillText('8 道题 · 2 分钟 · 专属天气卡',300,578);
       ctx.fillStyle=dark?'rgba(255,255,255,.85)':'rgba(255,255,255,.2)';rr(ctx,70,650,460,150,24);ctx.fill();
       ctx.fillStyle=ink;ctx.font='700 24px sans-serif';ctx.fillText('点击 / 复制链接，一起测',300,698);
-      ctx.fillStyle=dark?'#2C6BA0':'#FFFFFF';ctx.font='800 22px sans-serif';ctx.fillText(INVITE_URL,300,752);
+      ctx.fillStyle=dark?'#2C6BA0':'#FFFFFF';ctx.font='800 22px sans-serif';ctx.fillText(inviteUrl(),300,752);
       ctx.fillStyle=inkSoft;ctx.font='500 18px sans-serif';ctx.fillText('看看你今天的心情天气',300,782);
       ctx.fillStyle=inkSoft;ctx.font='600 20px sans-serif';ctx.fillText('情绪气象台 · 仅供自我探索',300,852);
     }

@@ -137,7 +137,8 @@ Deno.serve(async (req) => {
 
     // 签发短期会话票据（含 key_hash / device_id / 过期时间，HMAC 签名）；get-questions 改验票据
     const ticket = await issueTicket(kh, deviceId);
-    return respond(origin, 200, { ok: true, first, ticket });
+    // hash=key_hash：仅用于分享邀请定位（HMAC 哈希，非明文密钥、非认证凭证），前端据此生成邀请链接
+    return respond(origin, 200, { ok: true, first, ticket, hash: kh });
   } catch (err) {
     return respond(origin, 500, { ok: false, code: "server" });
   }
