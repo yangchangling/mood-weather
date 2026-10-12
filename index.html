@@ -342,10 +342,8 @@
       return {ok:false,msg:'网络异常，请检查网络后重试'};
     });
   }
-  function getTicket(){return state.ticket||(function(){try{return sessionStorage.getItem('mw_ticket')||'';}catch(e){return '';}})();}
+  function getTicket(){var s=(typeof state!=='undefined'&&state)?state.ticket:'';return s||(function(){try{return sessionStorage.getItem('mw_ticket')||'';}catch(e){return '';}})();}
   function clearTicket(){state.ticket='';try{sessionStorage.removeItem('mw_ticket');}catch(e){}}
-  // 恢复会话票据（页面刷新后仍可继续，无需重新输密钥）
-  (function(){var t=getTicket();if(t){state.ticket=t;}})();
 
   // 清除我的测评数据（④ 用户删除权）：用会话票据调用 erase-data，删除该设备绑定记录
   function eraseMyData(){
@@ -452,6 +450,8 @@
 
   /* ===== 状态与路由 ===== */
   var state={route:'intro',answers:[],current:0,questions:QUESTIONS,identity:'',retakes:0,ticket:''};
+  // 恢复会话票据（页面刷新后仍可继续，无需重新输密钥）
+  (function(){try{var t=getTicket();if(t){state.ticket=t;}}catch(e){}})();
   var RETRY_LIMIT=1; // 再测上限：初始 1 次 + 最多再测 1 次
   var views={intro:document.getElementById('view-intro'),identity:document.getElementById('view-identity'),quiz:document.getElementById('view-quiz'),result:document.getElementById('view-result')};
   function go(r){
