@@ -7,7 +7,9 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 function corsHeaders(origin: string): Record<string, string> {
-  const allow = origin && origin.endsWith(".github.io") ? origin : "*";
+  // 回显调用方 Origin：兼容 null(file://)、http://localhost(本地后台服务器)、*.github.io 等一切来源。
+  // manage-key 的真正防线是 MANAGE_KEY_ADMIN 强鉴权（x-admin-key），来源校验对其为次要，故不在此设白名单。
+  const allow = origin ? origin : "*";
   return {
     "Access-Control-Allow-Origin": allow,
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-admin-key",
@@ -40,10 +42,7 @@ Deno.serve(async (req) => {
   const origin = req.headers.get("Origin") || "";
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders(origin) });
   if (req.method !== "POST") return respond(origin, 405, { ok: false, code: "method" });
-  // 来源强校验：白名单 *.github.io；同时允许本地运营后台（file:// 下 Origin 为 null）——manage-key 本身有 MANAGE_KEY_ADMIN 强鉴权兜底
-  if (origin && origin !== "null" && !origin.endsWith(".github.io")) {
-    return respond(origin, 403, { ok: false, code: "forbidden" });
-  }
+  // 鉴权即来源防线：任何来源都放行 CORS（见 corsHeaders），真正授权由 MANAGE_KEY_ADMIN 强鉴权保证
 
   let body: any = {};
   try { body = await req.json(); } catch { return respond(origin, 400, { ok: false, code: "bad_body" }); }
