@@ -210,7 +210,7 @@
           <p class="key-err" id="key-err"></p>
         </div>
       </div>
-      <p class="foot-note">情绪气象台 · 仅供自我探索与娱乐</p>
+      <p class="foot-note">情绪气象台 · 仅供自我探索与娱乐 · 测试数据仅用于生成结果，不作他用</p>
     </section>
 
     <!-- ===== 视图：身份选择 ===== -->
@@ -315,17 +315,19 @@
   /* ===== 密钥校验（Supabase Edge Function）===== */
   var SUPABASE_URL='https://nyynghsbcfkbmgesnfzx.supabase.co';
   var SUPABASE_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im55eW5naHNiY2ZrYm1nZXNuZnp4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE3NDgzMDksImV4cCI6MjEwNzMyNDMwOX0.WvaY8nY9HxdcV9vBOmLkclc5koPq6LxEWMzhrZkRmlY';
+  // 设备指纹（S2 设备上限）：本地持久化一个稳定 id，随请求携带
+  var DEVICE_ID=(function(){try{var k='mw_device',v=localStorage.getItem(k);if(!v){v='d-'+Math.random().toString(36).slice(2,12)+Date.now().toString(36);localStorage.setItem(k,v);}return v;}catch(e){return '';}})();
   function verifyKey(raw){
     var cleaned=(raw||'').trim().toUpperCase().replace(/\s+/g,'');
     if(cleaned.length<6){return Promise.resolve({ok:false,msg:'密钥格式不正确，请检查后重试'});}
     return fetch(SUPABASE_URL+'/functions/v1/verify-key',{
       method:'POST',
       headers:{'Content-Type':'application/json','apikey':SUPABASE_ANON,'Authorization':'Bearer '+SUPABASE_ANON},
-      body:JSON.stringify({key:cleaned})
+      body:JSON.stringify({key:cleaned,device_id:DEVICE_ID})
     }).then(function(r){return r.json();}).then(function(d){
       if(d&&d.ok){return {ok:true,key:cleaned};}
-      var map={invalid:'密钥无效，请检查后重试',disabled:'该密钥已停用',no_key:'请输入测评密钥',bad_body:'密钥格式不正确，请检查后重试'};
-      return {ok:false,msg:(d&&map[d.code])||'密钥无效，请检查后重试'};
+      var map={invalid:'密钥无效，请检查后重试',disabled:'该密钥已停用',no_key:'请输入测评密钥',bad_body:'密钥格式不正确，请检查后重试',expired:'该密钥已过期，请重新购买',device_limit:'该密钥已绑定过多设备，请使用已绑定设备',rate_limited:'尝试过于频繁，请稍后再试'};
+      return {ok:false,msg:(d&&(map[d.code]||d.message))||'密钥无效，请检查后重试'};
     }).catch(function(){
       return {ok:false,msg:'网络异常，请检查网络后重试'};
     });
@@ -527,7 +529,7 @@
     fetch(SUPABASE_URL+'/functions/v1/get-questions',{
       method:'POST',
       headers:{'Content-Type':'application/json','apikey':SUPABASE_ANON,'Authorization':'Bearer '+SUPABASE_ANON},
-      body:JSON.stringify({identity:label,key:state.key})
+      body:JSON.stringify({identity:label,key:state.key,device_id:DEVICE_ID})
     }).then(function(r){return r.json();}).then(function(d){
       if(d&&d.ok&&d.questions){
         state.identity=d.identity_label||label;state.questions=d.questions;
@@ -538,7 +540,7 @@
         if(!fromStart){state.retakes++;updateRetakeUI();}
         startQuiz();
       }
-      else if(d&&d.code==='invalid_key'){state.key='';go('intro');toast('密钥已失效/未登录，请重新输入密钥');}
+      else if(d&&d.code==='invalid_key'){state.key='';go('intro');toast(d.message||'密钥已失效/未登录，请重新输入密钥');}
       else if(d&&d.code==='invalid_identity'){fromStart?openIdentity():go('result');toast(d.message||'输入内容不合规，请重新填写');}
       else{fromStart?openIdentity():toast('出题失败，请重试');}
     }).catch(function(){fromStart?openIdentity():toast('网络异常，请重试');});
@@ -554,14 +556,14 @@
     fetch(SUPABASE_URL+'/functions/v1/get-questions',{
       method:'POST',
       headers:{'Content-Type':'application/json','apikey':SUPABASE_ANON,'Authorization':'Bearer '+SUPABASE_ANON},
-      body:JSON.stringify({identity:state.identity,key:state.key})
+      body:JSON.stringify({identity:state.identity,key:state.key,device_id:DEVICE_ID})
     }).then(function(r){return r.json();}).then(function(d){
       if(d&&d.ok&&d.questions){
         state.questions=d.questions;state.retakes++;updateRetakeUI();
         if(d.fuzzy) toast('已为你匹配到相近身份「'+d.identity_label+'」');
         startQuiz();
       }
-      else if(d&&d.code==='invalid_key'){state.key='';go('intro');toast('密钥已失效/未登录，请重新输入密钥');}
+      else if(d&&d.code==='invalid_key'){state.key='';go('intro');toast(d.message||'密钥已失效/未登录，请重新输入密钥');}
       else{go('result');toast('重新出题失败，请重试');}
     }).catch(function(){go('result');toast('网络异常，请重试');});
   }

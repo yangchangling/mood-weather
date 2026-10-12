@@ -255,17 +255,33 @@ async function callDeepSeek(label: string, temperature: number): Promise<any[]> 
   return parsed.questions;
 }
 
+// ===== S4 AI 输出合规二次审查：生成题目含敏感词/医疗暗示则弃用（回退兜底题） =====
+const AI_OUT_ILLEGAL = /诊断|症状|疾病|药物|治疗|患病|抑郁|焦虑障碍|自伤|自残|自杀|医疗|就诊|服药|确诊|疗效|心理疾病|精神疾病|病症|肿瘤|癌|过敏|发烧|感冒药|医院|科室|处方|医嘱|心理咨询师|医生诊断/i;
+function contentSafe(q: any[]): boolean {
+  if (!Array.isArray(q)) return false;
+  let flat = "";
+  for (const it of q) {
+    if (!it) return false;
+    flat += (it.title || "") + " ";
+    if (Array.isArray(it.options)) for (const o of it.options) flat += (o?.text || "") + " ";
+  }
+  if (ILLEGAL_PAT.test(flat)) return false;
+  if (AI_OUT_ILLEGAL.test(flat)) return false;
+  return true;
+}
+
 Deno.serve(async (req) => {
   const origin = req.headers.get("Origin") || "";
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders(origin) });
   if (req.method !== "POST") return respond(origin, 405, { ok: false, code: "method" });
 
-  let label = "", licKey = "";
+  let label = "", licKey = "", deviceId = "";
   try {
     const body = await req.json();
     label = String(body.identity || "").trim().slice(0, 20);
     // 许可证密钥：清洗方式与 verify-key 保持一致（trim + 大写 + 去空白，保留连字符）
     licKey = String(body.key || "").trim().toUpperCase().replace(/\s+/g, "");
+    deviceId = String(body.device_id || "").trim().slice(0, 64);
   } catch {
     return respond(origin, 400, { ok: false, code: "bad_body" });
   }
@@ -283,19 +299,29 @@ Deno.serve(async (req) => {
     { auth: { persistSession: false } },
   );
 
-  // ===== P0-1 密钥鉴权：无 key / 坏 key / disabled → 拒绝取题，不触发 AI =====
+  // ===== P0-1 + S2 密钥鉴权：无 key / 坏 key / disabled / 过期 → 拒绝取题，不触发 AI =====
   // used / unused 均放行（与 verify-key 一致，允许已购用户刷新 / 重测）
   if (!licKey) {
     return respond(origin, 400, { ok: false, code: "invalid_key", message: "请先输入测评密钥" });
   }
   const { data: licRow, error: licErr } = await supabase
     .from("license_keys")
-    .select("key,status")
+    .select("key,status,expires_at")
     .eq("key", licKey)
     .maybeSingle();
   if (licErr) return respond(origin, 500, { ok: false, code: "server" });
   if (!licRow || licRow.status === "disabled") {
     return respond(origin, 200, { ok: false, code: "invalid_key", message: "密钥已失效/未登录，请重新输入密钥" });
+  }
+  if (licRow.expires_at && new Date(licRow.expires_at).getTime() < Date.now()) {
+    return respond(origin, 200, { ok: false, code: "invalid_key", message: "密钥已过期，请重新购买" });
+  }
+  // ===== S2 设备上限：携带 device_id 时登记并校验；未携带则放行（脚本可绕过设备上限，主付费墙仍有效） =====
+  if (deviceId) {
+    const { data: dev } = await supabase.rpc("license_register_device", { p_key: licKey, p_device: deviceId });
+    if (dev?.reason === "device_limit") {
+      return respond(origin, 200, { ok: false, code: "invalid_key", message: "该密钥已绑定过多设备，请使用已绑定设备" });
+    }
   }
 
   // 2) 题库池命中（热门身份：随机抽 8 题，每次不同）
@@ -366,10 +392,10 @@ Deno.serve(async (req) => {
   if (!limited) {
     try {
       let raw = await callDeepSeek(label, 0.9);
-      if (!validate(raw)) {
+      if (!(validate(raw) && contentSafe(raw))) {
         raw = await callDeepSeek(label, 0.5);
       }
-      if (validate(raw)) questions = normalize(raw);
+      if (validate(raw) && contentSafe(raw)) questions = normalize(raw);
     } catch { /* 继续兜底 */ }
   }
 

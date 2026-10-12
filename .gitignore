@@ -3,3 +3,16 @@ _shots/
 gh_login.log
 .db-password
 supabase/.temp/
+# 密钥/敏感文件一律不入库
+.env
+.env.*
+*.log
+*.key
+!package-lock.json
+__pycache__/
+# 含 service_role 的后台运维脚本（改从环境变量 SUPABASE_SERVICE_ROLE 读取）
+seed_bank.py
+audit_bank.py
+refill_bank.py
+ab_test.py
+recheck_refilled.py
