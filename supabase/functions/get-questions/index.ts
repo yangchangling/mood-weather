@@ -260,10 +260,12 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders(origin) });
   if (req.method !== "POST") return respond(origin, 405, { ok: false, code: "method" });
 
-  let label = "";
+  let label = "", licKey = "";
   try {
     const body = await req.json();
     label = String(body.identity || "").trim().slice(0, 20);
+    // 许可证密钥：清洗方式与 verify-key 保持一致（trim + 大写 + 去空白，保留连字符）
+    licKey = String(body.key || "").trim().toUpperCase().replace(/\s+/g, "");
   } catch {
     return respond(origin, 400, { ok: false, code: "bad_body" });
   }
@@ -280,6 +282,21 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     { auth: { persistSession: false } },
   );
+
+  // ===== P0-1 密钥鉴权：无 key / 坏 key / disabled → 拒绝取题，不触发 AI =====
+  // used / unused 均放行（与 verify-key 一致，允许已购用户刷新 / 重测）
+  if (!licKey) {
+    return respond(origin, 400, { ok: false, code: "invalid_key", message: "请先输入测评密钥" });
+  }
+  const { data: licRow, error: licErr } = await supabase
+    .from("license_keys")
+    .select("key,status")
+    .eq("key", licKey)
+    .maybeSingle();
+  if (licErr) return respond(origin, 500, { ok: false, code: "server" });
+  if (!licRow || licRow.status === "disabled") {
+    return respond(origin, 200, { ok: false, code: "invalid_key", message: "密钥已失效/未登录，请重新输入密钥" });
+  }
 
   // 2) 题库池命中（热门身份：随机抽 8 题，每次不同）
   const { data: bankHit } = await supabase
@@ -339,14 +356,22 @@ Deno.serve(async (req) => {
   }
 
   // 4) 均未命中 → 调 DeepSeek 生成单套并缓存（冷门身份兜底）
+  // ===== P0-2 AI 限流：按密钥窗口 + 全局窗口双兜底，防止脚本循环刷爆账单 =====
   let questions: any[] | null = null;
-  try {
-    let raw = await callDeepSeek(label, 0.9);
-    if (!validate(raw)) {
-      raw = await callDeepSeek(label, 0.5);
-    }
-    if (validate(raw)) questions = normalize(raw);
-  } catch { /* 继续兜底 */ }
+  let limited = false;
+  // 单密钥：每 5 分钟最多触发 AI 2 次；全局：每分钟最多 20 次（防多 key 拉犁的安全兜底）
+  const { data: okKey } = await supabase.rpc("ai_acquire", { p_bucket: "k:" + licKey, p_window_seconds: 300, p_max: 2 });
+  const { data: okGlobal } = await supabase.rpc("ai_acquire", { p_bucket: "g", p_window_seconds: 60, p_max: 20 });
+  limited = okKey !== true || okGlobal !== true;
+  if (!limited) {
+    try {
+      let raw = await callDeepSeek(label, 0.9);
+      if (!validate(raw)) {
+        raw = await callDeepSeek(label, 0.5);
+      }
+      if (validate(raw)) questions = normalize(raw);
+    } catch { /* 继续兜底 */ }
+  }
 
   const source = questions ? "ai" : "fallback";
   const finalQ = questions || FALLBACK_QUESTIONS;
