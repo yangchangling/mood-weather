@@ -469,6 +469,10 @@
     }).then(function(r){return r.json();}).then(function(d){
       if(d&&d.ok&&d.questions){
         state.identity=d.identity_label||label;state.questions=d.questions;
+        if(d.fuzzy){
+          // 模糊匹配命中：友好提示已匹配到相近身份
+          toast('已为你匹配到相近身份「'+state.identity+'」，直接开测 ✨');
+        }
         if(!fromStart){state.retakes++;updateRetakeUI();}
         startQuiz();
       }
@@ -489,7 +493,9 @@
       body:JSON.stringify({identity:state.identity})
     }).then(function(r){return r.json();}).then(function(d){
       if(d&&d.ok&&d.questions){
-        state.questions=d.questions;state.retakes++;updateRetakeUI();startQuiz();
+        state.questions=d.questions;state.retakes++;updateRetakeUI();
+        if(d.fuzzy) toast('已为你匹配到相近身份「'+d.identity_label+'」');
+        startQuiz();
       }
       else{go('result');toast('重新出题失败，请重试');}
     }).catch(function(){go('result');toast('网络异常，请重试');});
