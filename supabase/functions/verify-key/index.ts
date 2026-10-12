@@ -100,6 +100,10 @@ Deno.serve(async (req) => {
     if (error) return respond(origin, 500, { ok: false, code: "server" });
     if (!row) return onFailure("invalid");
     if (row.status === "disabled") return onFailure("disabled");
+    // ===== 一码一用：已使用过的密钥拒绝再次激活（杜绝一码多用/共享） =====
+    if (row.status === "used") {
+      return respond(origin, 200, { ok: false, code: "used", message: "该密钥已使用过（一码一用），请重新购买" });
+    }
     // ===== S2 有效期校验 =====
     if (row.expires_at && new Date(row.expires_at).getTime() < Date.now()) return onFailure("expired");
 
@@ -112,15 +116,20 @@ Deno.serve(async (req) => {
       if (dev?.reason === "no_key") return respond(origin, 500, { ok: false, code: "server" });
     }
 
-    // 首次使用：unused → used（原子更新，带状态条件，防并发重复计数）
+    // 首次使用：unused → used（原子更新，带状态条件，防并发重复激活）
     let first = false;
     if (row.status === "unused") {
-      const { error: upErr } = await supabase
+      const { data: upd, error: upErr } = await supabase
         .from("license_keys")
         .update({ status: "used", used_at: new Date().toISOString() })
         .eq("key_hash", kh)
-        .eq("status", "unused");
+        .eq("status", "unused")
+        .select("key_hash");
       if (upErr) return respond(origin, 500, { ok: false, code: "server" });
+      // 并发下若已被其他请求抢先置 used，则本次视为"已使用"拒绝（一码一用）
+      if (!upd || upd.length === 0) {
+        return respond(origin, 200, { ok: false, code: "used", message: "该密钥已使用过（一码一用），请重新购买" });
+      }
       first = true;
     }
 
