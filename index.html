@@ -346,10 +346,37 @@
   function clearTicket(){state.ticket='';try{sessionStorage.removeItem('mw_ticket');}catch(e){}}
 
   // 清除我的测评数据（④ 用户删除权）：用会话票据调用 erase-data，删除该设备绑定记录
-  function eraseMyData(){
+  var _eraseModal;
+  function confirmErase(){
+    if(_eraseModal)return;
+    var m=document.createElement('div');
+    m.style.cssText='position:fixed;inset:0;background:rgba(15,28,48,.45);display:flex;align-items:center;justify-content:center;z-index:98;';
+    var card=document.createElement('div');
+    card.style.cssText='background:#fff;border-radius:16px;max-width:320px;width:86%;padding:20px 18px 16px;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,.22);';
+    var t=document.createElement('p');
+    t.style.cssText='margin:0 0 6px;font-size:16px;font-weight:700;color:var(--ink,#1F3A5F);';
+    t.textContent='清除测评数据？';
+    var d=document.createElement('p');
+    d.style.cssText='margin:0 0 18px;font-size:13px;color:var(--ink-soft,#5A6B85);line-height:1.6;';
+    d.textContent='将删除本设备上的绑定记录，清除后需重新输入密钥才能继续测评。';
+    var row=document.createElement('div');
+    row.style.cssText='display:flex;gap:10px;';
+    var c=document.createElement('button');
+    c.textContent='取消';
+    c.style.cssText='flex:1;padding:10px;border-radius:10px;border:1px solid #D6E0EF;background:#fff;color:#1F3A5F;font-size:14px;';
+    var o=document.createElement('button');
+    o.textContent='确认清除';
+    o.style.cssText='flex:1;padding:10px;border-radius:10px;border:none;background:#E2506E;color:#fff;font-size:14px;';
+    c.onclick=function(){closeModal();};
+    o.onclick=function(){closeModal();doErase();};
+    row.appendChild(c);row.appendChild(o);
+    card.appendChild(t);card.appendChild(d);card.appendChild(row);
+    m.appendChild(card);document.body.appendChild(m);_eraseModal=m;
+    function closeModal(){if(_eraseModal){_eraseModal.remove();_eraseModal=null;}}
+  }
+  function doErase(){
     var t=getTicket();
     if(!t){toast('请先输入密钥后再试');return;}
-    if(!window.confirm('确定清除本设备的测评数据吗？清除后需重新输入密钥才能继续。'))return;
     fetch(SUPABASE_URL+'/functions/v1/erase-data',{
       method:'POST',
       headers:{'Content-Type':'application/json','apikey':SUPABASE_ANON,'Authorization':'Bearer '+SUPABASE_ANON},
@@ -363,6 +390,7 @@
       }
     }).catch(function(){toast('网络异常，请重试');});
   }
+  function eraseMyData(){confirmErase();}
   var eraseBtn=document.getElementById('btn-erase-data');
   if(eraseBtn)eraseBtn.addEventListener('click',eraseMyData);
 
