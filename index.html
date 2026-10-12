@@ -114,6 +114,10 @@
   .wc-line{margin-top:16px;font-size:15px;font-weight:700;letter-spacing:.3px;}
   .result-actions{display:flex;flex-direction:column;gap:12px;margin-top:20px;}
   .result-note{text-align:center;font-size:12px;color:var(--ink-soft);margin-top:14px;line-height:1.6;}
+  .result-disclaimer{text-align:center;font-size:11.5px;color:var(--ink-soft);margin-top:14px;line-height:1.6;opacity:.85;}
+  .erase-row{text-align:center;margin-top:12px;}
+  .link-btn{background:none;border:none;color:var(--ink-soft);font-size:12px;text-decoration:underline;cursor:pointer;opacity:.8;}
+  .link-btn:hover{opacity:1;}
 
   .wc.sky{background:linear-gradient(160deg,#5FB0E6,#BDE4F5);}
   .wc.mist{background:linear-gradient(160deg,#A9BDD2,#E9EFF6);color:#31465e;}
@@ -210,7 +214,7 @@
           <p class="key-err" id="key-err"></p>
         </div>
       </div>
-      <p class="foot-note">情绪气象台 · 仅供自我探索与娱乐 · 测试数据仅用于生成结果，不作他用</p>
+      <p class="foot-note">情绪气象台 · 仅供自我探索与娱乐 · 测试数据仅用于生成结果，不作他用 · 部分题目由第三方 AI 生成</p>
     </section>
 
     <!-- ===== 视图：身份选择 ===== -->
@@ -290,6 +294,8 @@
           <button class="btn ghost" id="btn-again">再测一次</button>
         </div>
         <p class="result-note" id="result-note"></p>
+        <p class="result-disclaimer">仅供自我探索与娱乐，非专业心理评估；如有情绪困扰，请向亲友倾诉，或咨询专业心理机构、拨打心理援助热线。</p>
+        <div class="erase-row"><button class="link-btn" id="btn-erase-data">清除我的测评数据</button></div>
 
         <div class="invite-box" id="invite-box">
           <div class="invite-head">
@@ -325,13 +331,42 @@
       headers:{'Content-Type':'application/json','apikey':SUPABASE_ANON,'Authorization':'Bearer '+SUPABASE_ANON},
       body:JSON.stringify({key:cleaned,device_id:DEVICE_ID})
     }).then(function(r){return r.json();}).then(function(d){
-      if(d&&d.ok){return {ok:true,key:cleaned};}
+      if(d&&d.ok){
+        // 校验成功后只保留短期会话票据，不再持有明文密钥
+        try{sessionStorage.setItem('mw_ticket',d.ticket);}catch(e){}
+        return {ok:true,ticket:d.ticket};
+      }
       var map={invalid:'密钥无效，请检查后重试',disabled:'该密钥已停用',no_key:'请输入测评密钥',bad_body:'密钥格式不正确，请检查后重试',expired:'该密钥已过期，请重新购买',device_limit:'该密钥已绑定过多设备，请使用已绑定设备',rate_limited:'尝试过于频繁，请稍后再试'};
       return {ok:false,msg:(d&&(map[d.code]||d.message))||'密钥无效，请检查后重试'};
     }).catch(function(){
       return {ok:false,msg:'网络异常，请检查网络后重试'};
     });
   }
+  function getTicket(){return state.ticket||(function(){try{return sessionStorage.getItem('mw_ticket')||'';}catch(e){return '';}})();}
+  function clearTicket(){state.ticket='';try{sessionStorage.removeItem('mw_ticket');}catch(e){}}
+  // 恢复会话票据（页面刷新后仍可继续，无需重新输密钥）
+  (function(){var t=getTicket();if(t){state.ticket=t;}})();
+
+  // 清除我的测评数据（④ 用户删除权）：用会话票据调用 erase-data，删除该设备绑定记录
+  function eraseMyData(){
+    var t=getTicket();
+    if(!t){toast('请先输入密钥后再试');return;}
+    if(!window.confirm('确定清除本设备的测评数据吗？清除后需重新输入密钥才能继续。'))return;
+    fetch(SUPABASE_URL+'/functions/v1/erase-data',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','apikey':SUPABASE_ANON,'Authorization':'Bearer '+SUPABASE_ANON},
+      body:JSON.stringify({ticket:t,device_id:DEVICE_ID})
+    }).then(function(r){return r.json();}).then(function(d){
+      if(d&&d.ok){
+        clearTicket();go('intro');
+        toast('已清除本设备的测评数据');
+      }else{
+        toast((d&&d.message)||'清除失败，请重试');
+      }
+    }).catch(function(){toast('网络异常，请重试');});
+  }
+  var eraseBtn=document.getElementById('btn-erase-data');
+  if(eraseBtn)eraseBtn.addEventListener('click',eraseMyData);
 
   /* ===== 统一 SVG 天气图标（stroke=currentColor） ===== */
   var ICONS = {
@@ -416,7 +451,7 @@
   };
 
   /* ===== 状态与路由 ===== */
-  var state={route:'intro',answers:[],current:0,questions:QUESTIONS,identity:'',retakes:0,key:''};
+  var state={route:'intro',answers:[],current:0,questions:QUESTIONS,identity:'',retakes:0,ticket:''};
   var RETRY_LIMIT=1; // 再测上限：初始 1 次 + 最多再测 1 次
   var views={intro:document.getElementById('view-intro'),identity:document.getElementById('view-identity'),quiz:document.getElementById('view-quiz'),result:document.getElementById('view-result')};
   function go(r){
@@ -434,7 +469,7 @@
     btnEnter.disabled=true;btnEnter.textContent='校验中…';
     verifyKey(k).then(function(res){
       btnEnter.disabled=false;btnEnter.textContent='开始';
-      if(res.ok){state.key=res.key;openIdentity();}else{showKeyErr(res.msg||'密钥无效');}
+      if(res.ok){state.ticket=res.ticket;openIdentity();}else{showKeyErr(res.msg||'密钥无效');}
     });
   });
   function showKeyErr(m){keyErr.textContent=m;keyErr.style.display='block';}
@@ -529,7 +564,7 @@
     fetch(SUPABASE_URL+'/functions/v1/get-questions',{
       method:'POST',
       headers:{'Content-Type':'application/json','apikey':SUPABASE_ANON,'Authorization':'Bearer '+SUPABASE_ANON},
-      body:JSON.stringify({identity:label,key:state.key,device_id:DEVICE_ID})
+      body:JSON.stringify({identity:label,ticket:getTicket(),device_id:DEVICE_ID})
     }).then(function(r){return r.json();}).then(function(d){
       if(d&&d.ok&&d.questions){
         state.identity=d.identity_label||label;state.questions=d.questions;
@@ -540,7 +575,7 @@
         if(!fromStart){state.retakes++;updateRetakeUI();}
         startQuiz();
       }
-      else if(d&&d.code==='invalid_key'){state.key='';go('intro');toast(d.message||'密钥已失效/未登录，请重新输入密钥');}
+      else if(d&&d.code==='invalid_key'){clearTicket();go('intro');toast(d.message||'密钥已失效/未登录，请重新输入密钥');}
       else if(d&&d.code==='invalid_identity'){fromStart?openIdentity():go('result');toast(d.message||'输入内容不合规，请重新填写');}
       else{fromStart?openIdentity():toast('出题失败，请重试');}
     }).catch(function(){fromStart?openIdentity():toast('网络异常，请重试');});
@@ -556,14 +591,14 @@
     fetch(SUPABASE_URL+'/functions/v1/get-questions',{
       method:'POST',
       headers:{'Content-Type':'application/json','apikey':SUPABASE_ANON,'Authorization':'Bearer '+SUPABASE_ANON},
-      body:JSON.stringify({identity:state.identity,key:state.key,device_id:DEVICE_ID})
+      body:JSON.stringify({identity:state.identity,ticket:getTicket(),device_id:DEVICE_ID})
     }).then(function(r){return r.json();}).then(function(d){
       if(d&&d.ok&&d.questions){
         state.questions=d.questions;state.retakes++;updateRetakeUI();
         if(d.fuzzy) toast('已为你匹配到相近身份「'+d.identity_label+'」');
         startQuiz();
       }
-      else if(d&&d.code==='invalid_key'){state.key='';go('intro');toast(d.message||'密钥已失效/未登录，请重新输入密钥');}
+      else if(d&&d.code==='invalid_key'){clearTicket();go('intro');toast(d.message||'密钥已失效/未登录，请重新输入密钥');}
       else{go('result');toast('重新出题失败，请重试');}
     }).catch(function(){go('result');toast('网络异常，请重试');});
   }
