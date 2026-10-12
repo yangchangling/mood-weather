@@ -65,7 +65,6 @@
   .key-input{display:flex;gap:10px;}
   .key-input input{flex:1;min-width:0;padding:14px 16px;border:1.5px solid var(--line);border-radius:14px;font-family:inherit;font-size:15px;letter-spacing:1.5px;background:rgba(255,255,255,.9);color:var(--ink);text-transform:uppercase;}
   .key-input input:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:var(--accent);}
-  .key-input .btn{flex:0 0 auto;padding:14px 24px;letter-spacing:2px;width:auto;}
   .key-hint{font-size:12px;color:var(--ink-soft);margin-top:9px;}
   .key-err{display:none;font-size:13px;color:#d05b6b;margin-top:10px;font-weight:600;}
 
@@ -214,8 +213,8 @@
           <label for="key">测评密钥</label>
           <div class="key-input">
             <input id="key" type="text" placeholder="请输入下单获得的密钥" autocomplete="off" autocapitalize="characters" spellcheck="false">
-            <button class="btn" id="btn-enter">我同意并开始测试</button>
           </div>
+          <button class="btn" id="btn-enter" style="margin-top:12px;">我同意并开始测试</button>
           <p class="key-hint">下单后会自动收到密钥，凭它解锁测评；点击「我同意并开始测试」即视为同意，无额外弹窗。</p>
           <p class="key-err" id="key-err"></p>
         </div>
