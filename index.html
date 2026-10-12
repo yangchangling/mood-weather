@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>情绪气象台 · 你的心情天气预报</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M7 18a4 4 0 1 1 0-8 5 5 0 0 1 9.6-1.5A4.5 4.5 0 1 1 17 18H7Z' fill='%235FA8E8'/%3E%3C/svg%3E">
+<style>
+  :root{
+    --ink:#1F3A5F; --ink-soft:#4A6A8C;
+    --accent:#5FA8E8; --accent-2:#8ED0F0;
+    --sun:#F2B23C; --sun-2:#FAD98A;
+    --pink:#EF9FB4; --line:rgba(31,58,95,.10);
+    --radius:26px; --shadow:0 14px 44px rgba(31,58,95,.10);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Segoe UI",sans-serif;
+    color:var(--ink);line-height:1.6;min-height:100%;overflow-x:hidden;
+    background:linear-gradient(170deg,#A8D8F0 0%,#DDF2FA 34%,#F7FCFE 68%,#FFF4F6 100%);
+    background-attachment:fixed;
+  }
+  .bg{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden;}
+  .glow{position:absolute;border-radius:50%;filter:blur(60px);opacity:.5;}
+  .g1{width:46vw;height:46vw;background:rgba(246,185,59,.28);top:-18vw;left:-14vw;animation:gdrift 26s ease-in-out infinite alternate;}
+  .g2{width:44vw;height:44vw;background:rgba(239,159,180,.26);bottom:-16vw;right:-12vw;animation:gdrift 32s ease-in-out infinite alternate-reverse;}
+  .g3{width:38vw;height:38vw;background:rgba(143,208,240,.32);top:40%;left:60%;animation:gdrift 40s ease-in-out infinite alternate;}
+  @keyframes gdrift{0%{transform:translate(0,0) scale(1);}100%{transform:translate(4vw,-4vw) scale(1.08);}}
+  .cloud-bg .cb{position:absolute;background:rgba(255,255,255,.55);border-radius:50%;filter:blur(12px);animation:drift linear infinite;}
+  .cb.c1{width:180px;height:60px;top:12%;animation-duration:38s;}
+  .cb.c2{width:260px;height:80px;top:26%;animation-duration:52s;animation-delay:-12s;}
+  .cb.c3{width:140px;height:48px;top:44%;animation-duration:44s;animation-delay:-24s;}
+  .cb.c4{width:300px;height:90px;top:64%;animation-duration:58s;animation-delay:-8s;}
+  @keyframes drift{0%{transform:translateX(-20vw);}100%{transform:translateX(120vw);}}
+  @media (prefers-reduced-motion:reduce){.cloud-bg .cb,.glow{animation:none;opacity:.35;}}
+
+  .app{position:relative;z-index:1;max-width:640px;margin:0 auto;padding:22px 20px calc(40px + env(safe-area-inset-bottom));min-height:100%;display:flex;flex-direction:column;}
+  .view{display:none;flex-direction:column;flex:1;}
+  .view.active{display:flex;}
+  .card{background:rgba(255,255,255,.82);backdrop-filter:blur(14px) saturate(140%);-webkit-backdrop-filter:blur(14px) saturate(140%);border:1px solid rgba(255,255,255,.7);border-radius:var(--radius);box-shadow:var(--shadow);padding:28px 24px;}
+
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:none;cursor:pointer;font-family:inherit;font-size:16px;font-weight:700;border-radius:18px;padding:15px 26px;color:#fff;min-height:54px;width:100%;background:linear-gradient(135deg,var(--accent),var(--accent-2));box-shadow:0 10px 24px rgba(95,168,232,.4);transition:transform .12s ease,box-shadow .2s ease,opacity .2s ease;}
+  .btn:hover{transform:translateY(-2px);box-shadow:0 14px 30px rgba(95,168,232,.5);}
+  .btn:active{transform:translateY(0) scale(.97);}
+  .btn:disabled{opacity:.5;cursor:not-allowed;transform:none;box-shadow:none;}
+  .btn.ghost{background:rgba(255,255,255,.6);color:var(--ink-soft);border:1px solid var(--line);box-shadow:none;}
+  .btn.ghost:hover{background:rgba(255,255,255,.9);box-shadow:none;}
+  .btn.sunny{background:linear-gradient(135deg,var(--sun),var(--sun-2));color:#6b4e00;box-shadow:0 10px 24px rgba(246,185,59,.45);}
+  .btn.sunny:hover{box-shadow:0 14px 30px rgba(246,185,59,.6);}
+
+  .hero{text-align:center;margin:8px 0 6px;}
+  .hero-halo{width:96px;height:96px;margin:0 auto 18px;position:relative;display:flex;align-items:center;justify-content:center;}
+  .hero-halo::before{content:"";position:absolute;inset:0;border-radius:28px;background:conic-gradient(from 0deg,var(--sun),var(--pink),#A99CE8,var(--accent),var(--sun));filter:blur(10px);opacity:.55;animation:hue 8s linear infinite;}
+  @keyframes hue{to{filter:blur(10px) hue-rotate(20deg);}}
+  .logo-badge{width:72px;height:72px;position:relative;z-index:1;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,var(--sun),var(--accent));border-radius:24px;box-shadow:0 12px 28px rgba(111,168,220,.4);}
+  .hero h1{font-size:31px;font-weight:800;letter-spacing:.5px;}
+  .hero .sub{font-size:15px;color:var(--ink-soft);margin-top:8px;line-height:1.7;}
+  .intro-meta{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin-top:22px;}
+  .meta-pill{display:inline-flex;align-items:center;gap:7px;background:rgba(255,255,255,.7);border:1px solid rgba(31,58,95,.08);border-radius:30px;padding:6px 14px;font-size:12.5px;color:var(--ink-soft);font-weight:600;box-shadow:0 4px 12px rgba(31,58,95,.06);}
+  .meta-pill i{width:8px;height:8px;border-radius:50%;background:linear-gradient(135deg,var(--sun),var(--accent));}
+
+  .key-field{margin-top:24px;}
+  .key-field label{display:block;font-size:14px;font-weight:700;margin-bottom:9px;}
+  .key-input{display:flex;gap:10px;}
+  .key-input input{flex:1;min-width:0;padding:14px 16px;border:1.5px solid var(--line);border-radius:14px;font-family:inherit;font-size:15px;letter-spacing:1.5px;background:rgba(255,255,255,.9);color:var(--ink);text-transform:uppercase;}
+  .key-input input:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:var(--accent);}
+  .key-input .btn{flex:0 0 auto;padding:14px 24px;letter-spacing:2px;width:auto;}
+  .key-hint{font-size:12px;color:var(--ink-soft);margin-top:9px;}
+  .key-err{display:none;font-size:13px;color:#d05b6b;margin-top:10px;font-weight:600;}
+
+  .quiz-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+  .quiz-top .qnum{font-size:14px;color:var(--ink-soft);font-weight:700;}
+  .quiz-top .back{cursor:pointer;font-size:14px;color:var(--ink-soft);display:inline-flex;align-items:center;gap:4px;background:none;border:none;font-family:inherit;padding:6px;}
+  .progress{height:9px;background:rgba(31,58,95,.10);border-radius:9px;overflow:hidden;margin-bottom:22px;}
+  .progress-fill{height:100%;width:0%;background:linear-gradient(90deg,var(--accent),var(--sun));border-radius:9px;transition:width .35s ease;position:relative;}
+  .progress-fill::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.4),transparent);animation:shine 2s linear infinite;}
+  @keyframes shine{from{transform:translateX(-100%);}to{transform:translateX(100%);}}
+  .q-box{animation:qIn .35s ease;}
+  @keyframes qIn{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
+  .q-badge{display:inline-flex;font-size:12px;font-weight:700;color:var(--accent);background:rgba(95,168,232,.12);padding:3px 12px;border-radius:20px;margin-bottom:10px;}
+  .q-title{font-size:20px;font-weight:700;line-height:1.5;}
+  .options{display:flex;flex-direction:column;gap:11px;margin-top:20px;}
+  .opt{display:flex;align-items:center;gap:12px;background:rgba(255,255,255,.92);border:1.5px solid var(--line);border-radius:16px;padding:14px 16px;cursor:pointer;transition:all .15s ease;}
+  .opt:hover{border-color:var(--accent);background:#f7fbff;transform:translateX(3px);}
+  .opt.sel{border-color:var(--accent);background:linear-gradient(135deg,rgba(95,168,232,.16),rgba(246,185,59,.10));box-shadow:inset 0 0 0 1px var(--accent);}
+  .opt .marker{flex-shrink:0;width:30px;height:30px;border-radius:50%;border:1.5px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--ink-soft);background:#fff;transition:all .15s ease;}
+  .opt.sel .marker{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .opt .ot{font-size:15px;color:var(--ink);font-weight:500;}
+  .opt .oicon{flex-shrink:0;width:34px;height:34px;color:var(--accent);display:flex;align-items:center;justify-content:center;}
+
+  .result-hero{text-align:center;margin-bottom:20px;}
+  .result-hero .label{font-size:13px;font-weight:800;letter-spacing:3px;color:var(--ink-soft);}
+  .result-hero h2{font-size:30px;font-weight:800;margin-top:4px;}
+  .weather-card{position:relative;border-radius:var(--radius);overflow:hidden;color:#fff;text-align:center;padding:30px 22px 24px;box-shadow:0 18px 44px rgba(31,58,95,.22);}
+  .wc-icon{width:96px;height:96px;margin:0 auto;filter:drop-shadow(0 8px 16px rgba(0,0,0,.18));animation:float 3.6s ease-in-out infinite;}
+  @keyframes float{0%,100%{transform:translateY(0);}50%{transform:translateY(-6px);}}
+  .wc-temp{font-size:42px;font-weight:800;margin-top:6px;}
+  .wc-type{font-size:23px;font-weight:800;margin-top:3px;letter-spacing:.5px;}
+  .wc-desc{font-size:14px;opacity:.96;max-width:340px;margin:10px auto 0;line-height:1.65;}
+  .wc-tags{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:16px;}
+  .wc-tags span{background:rgba(255,255,255,.22);border:1px solid rgba(255,255,255,.4);padding:5px 13px;border-radius:20px;font-size:12.5px;font-weight:700;}
+  .wc-share-note{margin:18px 6px 0;padding:14px;border-radius:16px;background:rgba(255,255,255,.16);border:1px dashed rgba(255,255,255,.45);}
+  .wc-share-note .b1{font-size:13px;font-weight:700;}
+  .wc-share-note .b2{font-size:13px;margin-top:4px;opacity:.95;line-height:1.5;}
+  .wc-share-note .pct{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:9px;}
+  .pct .pbar{height:7px;flex:1;max-width:150px;background:rgba(255,255,255,.3);border-radius:7px;overflow:hidden;}
+  .pct .pbar i{display:block;height:100%;background:linear-gradient(90deg,#fff,rgba(255,255,255,.6));border-radius:7px;width:0;transition:width 1s ease .4s;}
+  .pct .pv{font-size:12px;font-weight:700;white-space:nowrap;}
+  .dual{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:14px;}
+  .dual .side{background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);border-radius:16px;padding:12px;}
+  .dual .side .k{font-size:11.5px;font-weight:800;letter-spacing:1px;opacity:.9;}
+  .dual .side .v{font-size:13px;margin-top:5px;line-height:1.5;}
+  .wc-line{margin-top:16px;font-size:15px;font-weight:700;letter-spacing:.3px;}
+  .result-actions{display:flex;flex-direction:column;gap:12px;margin-top:20px;}
+  .result-note{text-align:center;font-size:12px;color:var(--ink-soft);margin-top:14px;line-height:1.6;}
+
+  .wc.sky{background:linear-gradient(160deg,#5FB0E6,#BDE4F5);}
+  .wc.mist{background:linear-gradient(160deg,#A9BDD2,#E9EFF6);color:#31465e;}
+  .wc.rain{background:linear-gradient(160deg,#5D86C9,#A9C4EC);}
+  .wc.storm{background:linear-gradient(160deg,#4C5A9E,#8A8FC8);}
+  .wc.rainbow{background:linear-gradient(160deg,#F2A9C8,#F7CE6B 50%,#7FD6B0);}
+  .wc.snow{background:linear-gradient(160deg,#C9DFF0,#F2F7FB);color:#35506e;}
+
+  .invite-box{margin-top:22px;padding:18px 16px;border-radius:20px;background:linear-gradient(160deg,rgba(95,168,232,.10),rgba(246,185,59,.14));border:1px dashed rgba(31,58,95,.18);}
+  .invite-head{text-align:center;margin-bottom:14px;}
+  .invite-title{display:block;font-size:16px;font-weight:800;color:var(--ink);}
+  .invite-sub{display:block;font-size:12px;color:var(--ink-soft);margin-top:3px;}
+  .invite-canvas{display:block;width:100%;max-width:330px;height:auto;margin:0 auto;border-radius:18px;box-shadow:0 12px 30px rgba(31,58,95,.20);background:#fff;}
+  .invite-actions{display:flex;flex-direction:column;gap:10px;margin-top:14px;}
+  .invite-actions .btn{min-height:48px;padding:12px 20px;font-size:15px;}
+
+  .foot-note{text-align:center;font-size:12px;color:var(--ink-soft);margin-top:22px;opacity:.85;}
+  @media (max-width:480px){.card{padding:22px 18px;}.hero h1{font-size:27px;}.result-hero h2{font-size:26px;}.wc-icon{width:78px;height:78px;}}
+</style>
+</head>
+<body>
+  <div class="bg" aria-hidden="true">
+    <div class="glow g1"></div><div class="glow g2"></div><div class="glow g3"></div>
+    <div class="cloud-bg"><div class="cb c1"></div><div class="cb c2"></div><div class="cb c3"></div><div class="cb c4"></div></div>
+  </div>
+
+  <div class="app" id="app">
+
+    <!-- ===== 视图：开始页 ===== -->
+    <section class="view active" id="view-intro">
+      <div class="card">
+        <div class="hero">
+          <div class="hero-halo" aria-hidden="true">
+            <div class="logo-badge">
+              <svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M7 18a4 4 0 1 1 0-8 5 5 0 0 1 9.6-1.5A4.5 4.5 0 1 1 17 18H7Z"/>
+                <path d="M12 18l1.5 1.5L15 18"/>
+              </svg>
+            </div>
+          </div>
+          <h1>情绪气象台</h1>
+          <p class="sub">你的情绪，其实一直有天气<br>花两分钟，看看今天你是什么天气</p>
+        </div>
+        <div class="intro-meta">
+          <span class="meta-pill"><i></i>8 道题</span>
+          <span class="meta-pill"><i></i>约 2 分钟</span>
+          <span class="meta-pill"><i></i>专属天气卡</span>
+        </div>
+        <div class="key-field">
+          <label for="key">测评密钥</label>
+          <div class="key-input">
+            <input id="key" type="text" placeholder="请输入下单获得的密钥" autocomplete="off" autocapitalize="characters" spellcheck="false">
+            <button class="btn" id="btn-enter">开始</button>
+          </div>
+          <p class="key-hint">示例：下单后会自动收到密钥，凭它进入测评。</p>
+          <p class="key-err" id="key-err"></p>
+        </div>
+      </div>
+      <p class="foot-note">情绪气象台 · 仅供自我探索与娱乐</p>
+    </section>
+
+    <!-- ===== 视图：答题页 ===== -->
+    <section class="view" id="view-quiz">
+      <div class="card">
+        <div class="quiz-top">
+          <span class="qnum" id="qnum">第 1 题 · 共 8 题</span>
+          <button class="back" id="btn-back" aria-label="返回上一步">‹ 上一步</button>
+        </div>
+        <div class="progress"><div class="progress-fill" id="progress"></div></div>
+        <div class="q-box" id="q-box">
+          <div class="q-badge" id="q-badge">心情采样</div>
+          <h2 class="q-title" id="q-title"></h2>
+          <div class="options" id="options"></div>
+        </div>
+      </div>
+      <p class="foot-note">凭直觉选择，答案没有对错</p>
+    </section>
+
+    <!-- ===== 视图：结果页 ===== -->
+    <section class="view" id="view-result">
+      <div class="card">
+        <div class="result-hero">
+          <div class="label">YOUR WEATHER TODAY</div>
+          <h2>你的心情天气</h2>
+        </div>
+        <div class="weather-card" id="weather-card">
+          <div class="wc-icon" id="wc-icon"></div>
+          <div class="wc-temp" id="wc-temp"></div>
+          <div class="wc-type" id="wc-type"></div>
+          <p class="wc-desc" id="wc-desc"></p>
+          <div class="wc-tags" id="wc-tags"></div>
+          <div class="wc-line" id="wc-line"></div>
+          <div class="wc-share-note">
+            <div class="b1" id="wc-pop"></div>
+            <div class="b2" id="wc-pop2"></div>
+            <div class="pct"><div class="pbar"><i id="pbar-fill"></i></div><span class="pv" id="pct-val"></span></div>
+          </div>
+          <div class="dual">
+            <div class="side"><div class="k">别人眼中的你</div><div class="v" id="wc-other"></div></div>
+            <div class="side"><div class="k">本质上的你</div><div class="v" id="wc-essence"></div></div>
+          </div>
+        </div>
+        <div class="result-actions">
+          <button class="btn sunny" id="btn-share">保存并分享天气卡</button>
+          <button class="btn ghost" id="btn-again">再测一次</button>
+        </div>
+        <p class="result-note" id="result-note"></p>
+
+        <div class="invite-box" id="invite-box">
+          <div class="invite-head">
+            <span class="invite-title">邀请朋友，看看 TA 是什么天气</span>
+            <span class="invite-sub">专属邀请海报已按你的天气生成</span>
+          </div>
+          <canvas id="invite-canvas" class="invite-canvas" width="600" height="900" aria-label="专属邀请海报"></canvas>
+          <div class="invite-actions">
+            <button class="btn" id="btn-save-invite">保存邀请海报</button>
+            <button class="btn ghost" id="btn-copy-invite">复制邀请文案</button>
+          </div>
+        </div>
+      </div>
+      <p class="foot-note">情绪气象台 · 仅供自我探索与娱乐</p>
+    </section>
+
+  </div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ===== 密钥校验（演示层）=====
+     当前任意密钥（去连字符后≥6位）即通过。
+     正式版改为 fetch(SUPABASE_URL+'/functions/v1/verify-key',{method:'POST',body:JSON.stringify({key:key})})，
+     由 Supabase Edge Function 校验密钥有效且未使用。 */
+  function verifyKey(key){
+    return new Promise(function(resolve){
+      setTimeout(function(){
+        var cleaned = (key||'').trim().toUpperCase().replace(/[- ]/g,'');
+        if(cleaned.length>=6){ resolve({ok:true}); }
+        else{ resolve({ok:false,msg:'密钥格式不正确，请检查后重试'}); }
+      },350);
+    });
+  }
+
+  /* ===== 统一 SVG 天气图标（stroke=currentColor） ===== */
+  var ICONS = {
+    sun:'<circle cx="12" cy="11" r="4" fill="currentColor" stroke="none" opacity=".92"/><path d="M12 2.6v2M12 17.4v2M3.6 11h2M18.4 11h2M5.3 4.3l1.4 1.4M17.3 16.3l1.4 1.4M18.7 4.3l-1.4 1.4M6.7 16.3l-1.4 1.4"/>',
+    sky:'<circle cx="16" cy="7" r="2.7" fill="currentColor" stroke="none" opacity=".9"/><path d="M16 2.4v1.3M11.4 7h1.3M19.3 3.7l-.9.9" /><path d="M6.6 17.2a3 3 0 0 1 .5-6 3.8 3.8 0 0 1 6.6-.9 3.3 3.3 0 0 1 1.3 6.9H6.6Z"/>',
+    mist:'<path d="M7.2 14.5a3.4 3.4 0 0 1 .5-6.8A4.3 4.3 0 0 1 16 6.6a3.8 3.8 0 0 1 .6 7.9H7.2Z"/><path d="M8.4 17.4h7.2M10.2 20h3.6"/>',
+    rain:'<path d="M7.2 13.6a3.4 3.4 0 0 1 .5-6.8A4.3 4.3 0 0 1 16 5.7a3.8 3.8 0 0 1 .6 7.9H7.2Z"/><path d="M8.8 16l-1 2.2M12 16l-1 2.2M15.2 16l-1 2.2"/>',
+    storm:'<path d="M7.2 13.4a3.4 3.4 0 0 1 .5-6.8A4.3 4.3 0 0 1 16 5.5a3.8 3.8 0 0 1 .6 7.9H7.2Z"/><path d="M13 15.4l-3 3.6h2.2l-1 2.6 3.4-4h-2.4l1.6-2.2Z" fill="currentColor" stroke="none"/>',
+    rainbow:'<path d="M4 18a8 8 0 0 1 16 0"/><path d="M6.6 18a5.4 5.4 0 0 1 10.8 0"/><path d="M9.2 18a2.8 2.8 0 0 1 5.6 0"/>',
+    snow:'<path d="M7.2 13.2a3.4 3.4 0 0 1 .5-6.8A4.3 4.3 0 0 1 16 5.3a3.8 3.8 0 0 1 .6 7.9H7.2Z"/><path d="M12 15.6v4.4M10 16.8l4 2.4M14 16.8l-4 2.4"/>'
+  };
+  function svg(iconKey,cls){
+    return '<svg viewBox="0 0 24 24'+(cls?'" class="'+cls+'"':'"')+' fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+ICONS[iconKey]+'</svg>';
+  }
+
+  /* ===== 题库（前7题字母选项，第8题天气图标直选） ===== */
+  var QUESTIONS=[
+    {badge:'清晨',title:'闹钟响的那一下，你脑子里第一个念头是？',
+      options:[{text:'又是元气满满的一天',w:{sun:2,rainbow:1}},{text:'慢慢来，今天不急',w:{mist:2,sky:1}},{text:'好困，今天大概不好过',w:{rain:2,storm:1}},{text:'再睡五分钟，就五分钟',w:{snow:2,mist:1}}]},
+    {badge:'通勤路上',title:'地铁上刷手机，你更可能是哪种状态？',
+      options:[{text:'把趣事先分享给朋友',w:{sun:2,rainbow:1}},{text:'安静看自己感兴趣的内容',w:{mist:1,snow:1}},{text:'莫名烦躁，只想快点到站',w:{storm:2,rain:1}},{text:'发呆，任思绪乱飘',w:{rain:1,snow:1}}]},
+    {badge:'午后',title:'开会或上课中途，你最常偷偷处于哪种状态？',
+      options:[{text:'想法一个接一个往外冒',w:{storm:2,sun:1}},{text:'表面平静，心里自己嗨',w:{sky:1,mist:1}},{text:'努力专注，偶尔走神',w:{snow:1,rain:1}},{text:'脑子里在构想更好玩的画面',w:{rainbow:2,storm:1}}]},
+    {badge:'傍晚',title:'一天结束前，你最想收到哪种消息？',
+      options:[{text:'有人约我，热闹一下',w:{sun:2,rainbow:1}},{text:'一句淡淡的关心就够',w:{mist:2,rain:1}},{text:'一件有成就感的小事',w:{snow:1,storm:1}},{text:'真诚的共鸣和认同',w:{rain:1,rainbow:1}}]},
+    {badge:'深夜',title:'关灯前的几分钟，你通常会想什么？',
+      options:[{text:'明天的事，有点小期待',w:{sun:1,storm:1}},{text:'复盘今天，哪里能更好',w:{snow:2,mist:1}},{text:'某些过去的人和事',w:{rain:2,snow:1}},{text:'一些天马行空的念头',w:{rainbow:2,storm:1}}]},
+    {badge:'情绪来了',title:'莫名低落时，你最容易靠什么缓过来？',
+      options:[{text:'出门走走，让自己动起来',w:{sun:2,storm:1}},{text:'一个人安静听点什么',w:{mist:2,snow:1}},{text:'吃点暖的、好吃的',w:{rain:1,rainbow:1}},{text:'找个人聊一聊',w:{sun:1,rainbow:1}}]},
+    {badge:'与人相处',title:'你更习惯哪一种相处节奏？（上一题的反向校验）',
+      options:[{text:'直接坦诚，越聊越热',w:{storm:2,sun:1}},{text:'舒服自然，像天气一样温和',w:{sky:2,mist:1}},{text:'需要一点空间慢慢靠近',w:{rain:2,snow:1}},{text:'能一起笑闹，也能互相治愈',w:{rainbow:2,sun:1}}]},
+    {badge:'收尾',title:'如果给自己的心情选一个天气，你会选？',
+      options:[
+        {icon:'sun',text:'晴朗',w:{sun:2}},{icon:'sky',text:'通透',w:{sky:2}},{icon:'mist',text:'平静',w:{mist:2}},{icon:'rain',text:'湿润',w:{rain:2}},
+        {icon:'storm',text:'热烈',w:{storm:2}},{icon:'rainbow',text:'绚烂',w:{rainbow:2}},{icon:'snow',text:'清澈',w:{snow:2}}]}
+  ];
+
+  /* ===== 天气人格结果 ===== */
+  var WEATHERS={
+    sun:{icon:'sun',temp:'26°C',type:'晴朗 · 暖阳型',
+      desc:'你的情绪像大晴天，明亮、有感染力。你不是没有乌云，只是太阳在的地方，云总会先散开。',
+      tags:['阳光制造机','行动派','自带能量'],line:'今天的你，是照进别人生活的那道光',
+      pop:'每 18 个人里就有 1 个，和你一样是「暖阳」',pop2:'爱笑、有感染力，身边的人常常被你照亮',pct:18,
+      other:'总是元气满满，好像永远不会累',essence:'其实你也会累，只是更愿意把光给别人',cls:'sky',
+      share:'我的心情天气是「晴朗 · 暖阳型」，今天也是想照进你生活的一天'},
+    sky:{icon:'sky',temp:'21°C',type:'蓝天 · 通透型',
+      desc:'你通透、沉稳，像刚洗过的蓝天，少有阴霾。你看得清方向，也愿意给别人留白，是一种安静的力量。',
+      tags:['清醒通透','稳定内核','治愈他人'],line:'你心里有海，也容得下风浪',
+      pop:'每 15 个人里就有 1 个，和你一样是「通透」',pop2:'沉稳、看得开，是朋友眼中靠谱的人',pct:15,
+      other:'理性清醒，遇事不慌',essence:'只是不轻易显露，心里同样翻涌着情绪',cls:'sky',
+      share:'我的心情天气是「蓝天 · 通透型」，愿你今天也通透'},
+    mist:{icon:'mist',temp:'19°C',type:'多云 · 平和型',
+      desc:'你是多云的天气，温柔、包容、不爱声张。习惯把情绪藏进云层，但需要时，阳光总会在云缝里透出来。',
+      tags:['温柔内敛','高共情','安全感'],line:'云层很厚，但挡不住你的温柔',
+      pop:'每 14 个人里就有 1 个，和你一样是「平和」',pop2:'温暖、好相处，是大家愿意靠近的人',pct:14,
+      other:'脾气好、共情强，总在照顾别人',essence:'其实你也很需要被温柔对待',cls:'mist',
+      share:'我的心情天气是「多云 · 平和型」，今天的云也很温柔'},
+    rain:{icon:'rain',temp:'16°C',type:'小雨 · 细腻型',
+      desc:'你是细腻的小雨天，敏感、善于感受，容易把别人的心情放在心上。雨不大但温柔，下过之后世界会更干净。',
+      tags:['情感细腻','洞察力强','温柔'],line:'你淋过雨，所以更懂得为别人撑伞',
+      pop:'每 13 个人里就有 1 个，和你一样是「细腻」',pop2:'很懂别人、心思细，是能读到空气的人',pct:13,
+      other:'细腻敏锐，总能看懂别人没说出口的话',essence:'想太多是常态，但也因此更懂珍惜',cls:'rain',
+      share:'我的心情天气是「小雨 · 细腻型」，今天有点情绪，也很柔软'},
+    storm:{icon:'storm',temp:'24°C',type:'雷阵雨 · 热烈型',
+      desc:'你是来得快去得也快的雷阵雨，热烈、直接、敢想敢说。情绪雷声不小，但过后常常是晴天，还带着清爽。',
+      tags:['行动力强','敢表达','热情'],line:'你的雷声，是给别人壮胆的鼓点',
+      pop:'每 12 个人里就有 1 个，和你一样是「热烈」',pop2:'爽快、有冲劲，是让人眼前一亮的人',pct:12,
+      other:'直接有主见，情绪来得快去得也快',essence:'表面的冲劲底下，藏着同样在意别人的心',cls:'storm',
+      share:'我的心情天气是「雷阵雨 · 热烈型」，雷声大，雨点其实很温柔'},
+    rainbow:{icon:'rainbow',temp:'22°C',type:'彩虹 · 绚烂型',
+      desc:'你是彩虹一样的人，情绪丰富、色彩斑斓。能在平凡里发现惊喜，也总能把身边的生活点缀得更有趣。',
+      tags:['创造力','乐观','氛围制造者'],line:'你把平淡的日子，过成了彩色的',
+      pop:'每 17 个人里就有 1 个，和你一样是「绚烂」',pop2:'有趣、有想象力，是朋友圈的快乐来源',pct:17,
+      other:'脑洞大、有感染力，走到哪都热闹',essence:'热闹的外表下，也有自己安静敏感的角落',cls:'rainbow',
+      share:'我的心情天气是「彩虹 · 绚烂型」，生活偶尔需要一点彩'},
+    snow:{icon:'snow',temp:'4°C',type:'小雪 · 清冷型',
+      desc:'你是清澈的小雪天，冷静、自持、有边界感。你不多话，但内心有自己的节奏，安静的时候最有力量。',
+      tags:['冷静清醒','独立','思考者'],line:'你的清冷，是一种有分寸的温柔',
+      pop:'每 11 个人里就有 1 个，和你一样是「清冷」',pop2:'独立、有分寸，话少但句句在点子上',pct:11,
+      other:'冷静克制，好像什么都不容易动摇',essence:'其实你比谁都认真，只是不说',cls:'snow',
+      share:'我的心情天气是「小雪 · 清冷型」，冷一点，反而更清醒'}
+  };
+
+  /* ===== 状态与路由 ===== */
+  var state={route:'intro',answers:[],current:0};
+  var views={intro:document.getElementById('view-intro'),quiz:document.getElementById('view-quiz'),result:document.getElementById('view-result')};
+  function go(r){
+    Object.keys(views).forEach(function(k){views[k].classList.toggle('active',k===r);});
+    state.route=r;window.scrollTo(0,0);
+  }
+
+  /* ===== 开始页 ===== */
+  var keyInput=document.getElementById('key'),btnEnter=document.getElementById('btn-enter'),keyErr=document.getElementById('key-err');
+  keyInput.addEventListener('keydown',function(e){if(e.key==='Enter'){btnEnter.click();}});
+  keyInput.addEventListener('input',function(){keyErr.style.display='none';});
+  btnEnter.addEventListener('click',function(){
+    var k=keyInput.value;
+    if(!k.trim()){showKeyErr('请输入测评密钥');return;}
+    btnEnter.disabled=true;btnEnter.textContent='校验中…';
+    verifyKey(k).then(function(res){
+      btnEnter.disabled=false;btnEnter.textContent='开始';
+      if(res.ok){startQuiz();}else{showKeyErr(res.msg||'密钥无效');}
+    });
+  });
+  function showKeyErr(m){keyErr.textContent=m;keyErr.style.display='block';}
+
+  /* ===== 答题 ===== */
+  function startQuiz(){state.answers=[];state.current=0;go('quiz');renderQuestion();}
+  function renderQuestion(){
+    var q=QUESTIONS[state.current];
+    document.getElementById('qnum').textContent='第 '+(state.current+1)+' 题 · 共 '+QUESTIONS.length+' 题';
+    document.getElementById('q-badge').textContent=q.badge;
+    document.getElementById('q-title').textContent=q.title;
+    document.getElementById('progress').style.width=(state.current/QUESTIONS.length*100)+'%';
+    var box=document.getElementById('q-box');box.style.animation='none';void box.offsetWidth;box.style.animation='qIn .35s ease';
+    var optBox=document.getElementById('options');optBox.innerHTML='';
+    q.options.forEach(function(opt,idx){
+      var d=document.createElement('div');
+      d.className='opt'+(state.answers[state.current]===idx?' sel':'');
+      var lead=opt.icon?'<span class="oicon">'+svg(opt.icon)+'</span>':'<span class="marker">'+String.fromCharCode(65+idx)+'</span>';
+      d.innerHTML=lead+'<span class="ot">'+opt.text+'</span>';
+      d.setAttribute('role','button');d.setAttribute('tabindex','0');
+      d.addEventListener('click',function(){choose(idx);});
+      d.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();choose(idx);}});
+      optBox.appendChild(d);
+    });
+  }
+  function choose(idx){
+    state.answers[state.current]=idx;
+    if(state.current<QUESTIONS.length-1){state.current++;renderQuestion();}else{showResult();}
+  }
+  document.getElementById('btn-back').addEventListener('click',function(){
+    if(state.current>0){state.current--;renderQuestion();}else{go('intro');}
+  });
+
+  /* ===== 结果 ===== */
+  function showResult(){
+    var tally={sun:0,sky:0,mist:0,rain:0,storm:0,rainbow:0,snow:0};
+    state.answers.forEach(function(ai,qi){
+      var opt=QUESTIONS[qi].options[ai];if(!opt||!opt.w)return;
+      Object.keys(opt.w).forEach(function(k){tally[k]+=opt.w[k];});
+    });
+    var topKey=Object.keys(tally).reduce(function(a,b){return tally[b]>tally[a]?b:a;},'sun');
+    var w=WEATHERS[topKey];
+    var card=document.getElementById('weather-card');card.className='weather-card wc '+w.cls;
+    document.getElementById('wc-icon').innerHTML=svg(w.icon);
+    document.getElementById('wc-temp').textContent=w.temp;
+    document.getElementById('wc-type').textContent=w.type;
+    document.getElementById('wc-desc').textContent=w.desc;
+    document.getElementById('wc-line').textContent=w.line;
+    document.getElementById('wc-pop').textContent=w.pop;
+    document.getElementById('wc-pop2').textContent=w.pop2;
+    document.getElementById('wc-other').textContent=w.other;
+    document.getElementById('wc-essence').textContent=w.essence;
+    document.getElementById('pct-val').textContent='TOP '+w.pct+'%';
+    var tags=document.getElementById('wc-tags');tags.innerHTML='';
+    w.tags.forEach(function(t){var s=document.createElement('span');s.textContent=t;tags.appendChild(s);});
+    document.getElementById('result-note').textContent='天气卡已生成，可保存分享，也可邀请朋友测 TA 的天气。';
+    window.__moodShare=w.share;
+    window.__inviteText='我测出了「'+w.type+'」，你是什么天气？8题2分钟，来测你的心情天气 👉 '+INVITE_URL;
+    go('result');
+    var fill=document.getElementById('pbar-fill');fill.style.width='0%';
+    setTimeout(function(){fill.style.width='100%';},100);
+    drawInvitePoster(topKey,w);
+  }
+
+  /* ===== 再测 / 分享 ===== */
+  document.getElementById('btn-again').addEventListener('click',startQuiz);
+  document.getElementById('btn-share').addEventListener('click',function(){
+    var t=window.__moodShare||'';
+    if(navigator.share){navigator.share({title:'情绪气象台',text:t}).catch(function(){copyText(t,'分享文案已复制');});}
+    else{copyText(t,'分享文案已复制');}
+  });
+  document.getElementById('btn-copy-invite').addEventListener('click',function(){
+    copyText(window.__inviteText||'','邀请文案已复制');
+  });
+  document.getElementById('btn-save-invite').addEventListener('click',function(){
+    var cv=document.getElementById('invite-canvas'),a=document.createElement('a');
+    a.href=cv.toDataURL('image/png');a.download='情绪气象台-邀请海报.png';
+    document.body.appendChild(a);a.click();a.remove();toast('邀请海报已保存，快发给朋友');
+  });
+
+  function copyText(t,msg){
+    if(navigator.clipboard){navigator.clipboard.writeText(t).then(function(){toast(msg);}).catch(function(){window.prompt('复制文案：',t);});}
+    else{window.prompt('复制文案：',t);}
+  }
+  function toast(m){
+    var t=document.createElement('div');t.textContent=m;
+    t.style.cssText='position:fixed;left:50%;bottom:30px;transform:translateX(-50%);background:rgba(31,58,95,.92);color:#fff;padding:10px 18px;border-radius:12px;font-size:14px;z-index:99;box-shadow:0 6px 20px rgba(0,0,0,.15);';
+    document.body.appendChild(t);
+    setTimeout(function(){t.style.opacity='0';t.style.transition='opacity .3s';setTimeout(function(){t.remove();},300);},1800);
+  }
+
+  /* ===== 裂变邀请海报（Canvas） ===== */
+  var INVITE_URL='https://你的用户名.github.io/mood-weather/';
+  var POSTER_GRAD={
+    sun:['#F2B23C','#FAD98A'],sky:['#5FB0E6','#BDE4F5'],mist:['#A9BDD2','#E9EFF6'],
+    rain:['#5D86C9','#A9C4EC'],storm:['#4C5A9E','#8A8FC8'],
+    rainbow:['#F2A9C8','#F7CE6B','#7FD6B0'],snow:['#C9DFF0','#F2F7FB']
+  };
+  var POSTER_DARK={sun:1,mist:1,snow:1};
+  function rr(ctx,x,y,w,h,r){
+    ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();
+  }
+  function drawInvitePoster(key,w){
+    var cv=document.getElementById('invite-canvas');if(!cv||!cv.getContext)return;
+    var ctx=cv.getContext('2d'),W=600,H=900,colors=POSTER_GRAD[key]||POSTER_GRAD.sky;
+    var dark=!!POSTER_DARK[key],ink=dark?'#1F3A5F':'#FFFFFF',inkSoft=dark?'rgba(31,58,95,.72)':'rgba(255,255,255,.92)';
+    var ic=String(ICONS[key]).replace(/#/g,'%23');
+    var svgStr='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="'+(dark?'#1F3A5F':'#FFFFFF')+'" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">'+ICONS[key]+'</svg>';
+    var img=new Image();
+    img.onload=function(){paint(img);};img.onerror=function(){paint(null);};
+    img.src='data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(svgStr)));
+    function paint(img){
+      var g=ctx.createLinearGradient(0,0,W,H);
+      if(colors.length===3){g.addColorStop(0,colors[0]);g.addColorStop(.5,colors[1]);g.addColorStop(1,colors[2]);}
+      else{g.addColorStop(0,colors[0]);g.addColorStop(1,colors[1]);}
+      ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+      ctx.fillStyle=dark?'rgba(255,255,255,.4)':'rgba(255,255,255,.16)';
+      ctx.beginPath();ctx.arc(80,120,120,0,Math.PI*2);ctx.fill();
+      ctx.beginPath();ctx.arc(540,760,150,0,Math.PI*2);ctx.fill();
+      ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillStyle=inkSoft;ctx.font='600 26px sans-serif';ctx.fillText('我在情绪气象台测出了',300,96);
+      if(img){ctx.drawImage(img,235,128,130,130);}
+      ctx.fillStyle=ink;ctx.font='800 52px sans-serif';ctx.fillText(w.type,300,330);
+      ctx.fillStyle=inkSoft;ctx.font='600 28px sans-serif';ctx.fillText(w.temp+' · 心情指数',300,392);
+      ctx.strokeStyle=dark?'rgba(31,58,95,.18)':'rgba(255,255,255,.4)';ctx.lineWidth=2;
+      ctx.beginPath();ctx.moveTo(180,446);ctx.lineTo(420,446);ctx.stroke();
+      ctx.fillStyle=ink;ctx.font='800 46px sans-serif';ctx.fillText('你，是什么天气？',300,520);
+      ctx.fillStyle=inkSoft;ctx.font='500 26px sans-serif';ctx.fillText('8 道题 · 2 分钟 · 专属天气卡',300,578);
+      ctx.fillStyle=dark?'rgba(255,255,255,.85)':'rgba(255,255,255,.2)';rr(ctx,70,650,460,150,24);ctx.fill();
+      ctx.fillStyle=ink;ctx.font='700 24px sans-serif';ctx.fillText('点击 / 复制链接，一起测',300,698);
+      ctx.fillStyle=dark?'#2C6BA0':'#FFFFFF';ctx.font='800 22px sans-serif';ctx.fillText(INVITE_URL,300,752);
+      ctx.fillStyle=inkSoft;ctx.font='500 18px sans-serif';ctx.fillText('看看你今天的心情天气',300,782);
+      ctx.fillStyle=inkSoft;ctx.font='600 20px sans-serif';ctx.fillText('情绪气象台 · 仅供自我探索',300,852);
+    }
+  }
+
+  go('intro');
+
+})();
+</script>
+</body>
+</html>
