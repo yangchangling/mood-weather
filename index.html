@@ -399,7 +399,8 @@
   };
 
   /* ===== 状态与路由 ===== */
-  var state={route:'intro',answers:[],current:0,questions:QUESTIONS,identity:''};
+  var state={route:'intro',answers:[],current:0,questions:QUESTIONS,identity:'',retakes:0};
+  var RETRY_LIMIT=1; // 再测上限：初始 1 次 + 最多再测 1 次
   var views={intro:document.getElementById('view-intro'),identity:document.getElementById('view-identity'),quiz:document.getElementById('view-quiz'),result:document.getElementById('view-result')};
   function go(r){
     Object.keys(views).forEach(function(k){views[k].classList.toggle('active',k===r);});
@@ -454,16 +455,55 @@
   idCustomInput.addEventListener('keydown',function(e){if(e.key==='Enter'){document.getElementById('id-custom-ok').click();}});
 
   function selectIdentity(label){
-    idPicker.style.display='none';idLoading.hidden=false;
-    document.getElementById('id-load-text').textContent='正在观测「'+label+'」的天空…';
+    state.identity=label;state.retakes=0; // 首次进入，重置再测次数
+    fetchQuestions(label,true);
+  }
+
+  // 统一取题：首次 fromStart=true 显示 loading；再测 fromStart=false（复用结果页 loading 风格）
+  function fetchQuestions(label,fromStart){
+    if(fromStart){idPicker.style.display='none';idLoading.hidden=false;document.getElementById('id-load-text').textContent='正在观测「'+label+'」的天空…';}
     fetch(SUPABASE_URL+'/functions/v1/get-questions',{
       method:'POST',
       headers:{'Content-Type':'application/json','apikey':SUPABASE_ANON,'Authorization':'Bearer '+SUPABASE_ANON},
       body:JSON.stringify({identity:label})
     }).then(function(r){return r.json();}).then(function(d){
-      if(d&&d.ok&&d.questions){state.identity=d.identity_label||label;state.questions=d.questions;startQuiz();}
-      else{openIdentity();toast('出题失败，请重试');}
-    }).catch(function(){openIdentity();toast('网络异常，请重试');});
+      if(d&&d.ok&&d.questions){
+        state.identity=d.identity_label||label;state.questions=d.questions;
+        if(!fromStart){state.retakes++;updateRetakeUI();}
+        startQuiz();
+      }
+      else{fromStart?openIdentity():toast('出题失败，请重试');}
+    }).catch(function(){fromStart?openIdentity():toast('网络异常，请重试');});
+  }
+
+  // 再测一次：重新随机抽题，受次数限制
+  function retake(){
+    if(state.retakes>=RETRY_LIMIT){toast('本密钥最多可再测 '+RETRY_LIMIT+' 次');return;}
+    if(!state.identity){startQuiz();return;}
+    // 显示再测 loading（复用身份页 loading，切到 identity 视图展示）
+    go('identity');idPicker.style.display='none';idLoading.hidden=false;
+    document.getElementById('id-load-text').textContent='正在重新抽题…';
+    fetch(SUPABASE_URL+'/functions/v1/get-questions',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','apikey':SUPABASE_ANON,'Authorization':'Bearer '+SUPABASE_ANON},
+      body:JSON.stringify({identity:state.identity})
+    }).then(function(r){return r.json();}).then(function(d){
+      if(d&&d.ok&&d.questions){
+        state.questions=d.questions;state.retakes++;updateRetakeUI();startQuiz();
+      }
+      else{go('result');toast('重新出题失败，请重试');}
+    }).catch(function(){go('result');toast('网络异常，请重试');});
+  }
+
+  // 更新再测按钮与提示
+  function updateRetakeUI(){
+    var left=RETRY_LIMIT-state.retakes;
+    var btn=document.getElementById('btn-again');
+    var note=document.getElementById('result-note');
+    btn.textContent=left>0?('再测一次（剩 '+left+' 次）'):'再测次数已用完';
+    btn.disabled=left<=0;
+    btn.style.opacity=left<=0?'0.5':'1';
+    if(note)note.textContent=left>0?'天气卡已生成，还可再测 '+left+' 次（会重新抽题）。':'天气卡已生成，本密钥的再测次数已用完。';
   }
 
   /* ===== 答题 ===== */
@@ -519,6 +559,7 @@
     var tags=document.getElementById('wc-tags');tags.innerHTML='';
     w.tags.forEach(function(t){var s=document.createElement('span');s.textContent=t;tags.appendChild(s);});
     document.getElementById('result-note').textContent='天气卡已生成，可保存分享，也可邀请朋友测 TA 的天气。';
+    updateRetakeUI();
     window.__moodShare=w.share;
     window.__inviteText=(state.identity?'作为'+state.identity+'，我':'我')+'测出了「'+w.type+'」，你是什么天气？8题2分钟，来测你的心情天气 👉 '+INVITE_URL;
     go('result');
@@ -528,7 +569,7 @@
   }
 
   /* ===== 再测 / 分享 ===== */
-  document.getElementById('btn-again').addEventListener('click',startQuiz);
+  document.getElementById('btn-again').addEventListener('click',retake);
   document.getElementById('btn-share').addEventListener('click',function(){
     var t=window.__moodShare||'';
     if(navigator.share){navigator.share({title:'情绪气象台',text:t}).catch(function(){copyText(t,'分享文案已复制');});}
