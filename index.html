@@ -634,6 +634,8 @@
       b.addEventListener('click',function(){selectIdentity(n);});
       idGrid.appendChild(b);
     });
+    var toggle=document.getElementById('id-custom-toggle');
+    toggle.style.display=list.length?'none':'';
     if(!list.length){var e=document.createElement('div');e.className='id-empty';e.textContent='没找到这个身份，点下方「自定义身份」';idGrid.appendChild(e);}
   }
   idSearch.addEventListener('input',function(){renderIdGrid(idSearch.value);});
