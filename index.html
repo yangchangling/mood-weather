@@ -592,6 +592,21 @@
 
   /* ===== 身份选择（动态出题） ===== */
   var PRESET_IDS=['宝妈','程序员','公务员','学生','教师','医护','销售','设计师','自由职业','打工人','会计','律师','客服','创业者','外卖骑手','护士','银行职员','HR','运营','退休人员'];
+  // 身份别名表（与后端 get-questions 的 IDENTITY_ALIASES 语义一致，键对齐前端 PRESET_IDS），供搜索框命中别名/谐音/近义叫法
+  var FRONT_ALIASES={
+    '程序员':['码农','程序猿','程序媛','码畜','攻城狮','开发','开发者','研发','it','it男','it女','软件工程师','软件开发','写代码的','搬砖码农','代码狗','技术男','程序员大哥','程序狗'],
+    '外卖骑手':['送外卖的','外卖员','外卖骑手','配送员','网约配送员','送快递的','快递员','快递小哥','外卖小哥','跑腿','跑腿小哥','骑手小哥','蓝骑士','同城配送','快递师傅','外卖','闪送','跑单的'],
+    '医护':['医生','大夫','护士','白衣天使','白衣战士','白大褂','医学生','医务工作者','医护人员','提灯天使','救死扶伤的','大白','白衣','医疗工作者','郎中','医师'],
+    '教师':['老师','人民教师','教书匠','园丁','灵魂工程师','大先生','授课老师','辅导老师','先生','教书先生','教员','夫子','老师傅','班主任','教育工作者','授业者','桃李'],
+    '学生':['学生党','大学生','同学','在校生','考研党','中学生','小学生','学生妹','学生仔','脆皮大学生','吗喽','学生娃','读书人','校园人','同学仔','小学鸡'],
+    '公务员':['体制内','公职人员','机关单位','事业单位','铁饭碗','考编的','考碗族','干部','公家饭','体制人','编制内','人民公仆'],
+    '销售':['销售员','业务员','跑业务的','销售顾问','销售经理','电销','导购','推销员','销售代表','销售助理','卖货的','业务代表','跑街','掮客','sales','salesman','销售总监','搞销售的'],
+    '宝妈':['全职妈妈','全职太太','新手妈妈','带娃的','家庭主妇','家庭妇女','哺乳期妈妈','带孩子的','全职奶妈','妈妈党','全职妈咪','二胎宝妈'],
+    '设计师':['设计','ui设计师','平面设计师','美工','插画师','设计狗','画图的','美工狗','视觉设计','设计狮','电商美工','美术师','手艺人','作图人','设计民工','画画的','产品设计'],
+    '自由职业':['自由职业者','自己创业','个体户','自由工作者','soho','soho族','做自媒体的','自媒体人','数字游民','freelancer','居家办公','独立创作者','自由撰稿人','斜杠','斜杠青年','博主','自由摄影','接单的'],
+    '打工人':['上班族','社畜','公司职员','白领','搬砖的','打工的','打工仔','打工妹','牛马','天选打工人','职场人','坐办公室的','上班的'],
+    '咖啡师':['咖啡店员','咖啡店店员','barista','咖啡吧员','咖啡师傅','冲咖啡的','做咖啡的','吧台师','咖啡技师','咖啡服务生','咖啡学徒']
+  };
   var idGrid=document.getElementById('id-grid'),idSearch=document.getElementById('id-search-input');
   var idPicker=document.getElementById('id-picker'),idLoading=document.getElementById('id-loading');
   var idCustomBox=document.getElementById('id-custom-box'),idCustomInput=document.getElementById('id-custom-input');
@@ -604,7 +619,16 @@
   function renderIdGrid(kw){
     idGrid.innerHTML='';
     var k=(kw||'').trim();
-    var list=PRESET_IDS.filter(function(n){return !k||n.indexOf(k)>=0;});
+    var list=PRESET_IDS.filter(function(n){
+      if(!k) return true;
+      if(n.indexOf(k)>=0) return true;
+      var als=FRONT_ALIASES[n]||[];
+      for(var i=0;i<als.length;i++){
+        var a=als[i];
+        if(a===k||a.indexOf(k)>=0||k.indexOf(a)>=0) return true;
+      }
+      return false;
+    });
     list.forEach(function(n){
       var b=document.createElement('button');b.type='button';b.className='id-chip';b.textContent=n;
       b.addEventListener('click',function(){selectIdentity(n);});
