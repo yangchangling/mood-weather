@@ -450,9 +450,35 @@
     if(idCustomBox.classList.contains('open'))idCustomInput.focus();
   });
   document.getElementById('id-custom-ok').addEventListener('click',function(){
-    var v=idCustomInput.value.trim();if(!v){idCustomInput.focus();return;}selectIdentity(v);
+    var v=idCustomInput.value.trim();if(!v){idCustomInput.focus();return;}
+    var err=validateIdentity(v);
+    if(err){toast(err);idCustomInput.focus();return;}
+    selectIdentity(v);
   });
   idCustomInput.addEventListener('keydown',function(e){if(e.key==='Enter'){document.getElementById('id-custom-ok').click();}});
+
+  // ===== 身份输入校验：拦截非法/非职业/敏感输入，避免无效算力与脏数据 =====
+  // 命中即拦截的敏感词（暴力/色情/违法/辱骂等，不当作职业处理）
+  var ILLEGAL_WORDS=['杀','砍','炸','枪','刀','血','尸','奸','淫','嫖','赌','毒','毒枭','黑客攻击','犯罪','绑架','抢劫','辱','sb','傻逼','垃圾','狗屁','去死','贱','滚','妈的','操'];
+  // 合法职业可含的特征：中文、常用词缀（师/员/工/家/人/手/哥/姐/师/者/员…）、常见英文职业词
+  var OK_EN=['it','ui','ux','soho','sales','freelancer','barista','coder','designer','ceo','cfo','cto','pm','hr','boss','driver','waiter','worker','teacher','doctor','nurse','accountant','lawyer','engineer','artist','chef','blogger','vlogger','anchor','trader','agent'];
+  var ID_AFFIX=['师','员','工','家','人','手','哥','姐','者','官','匠','头','士','工','警','医','教','农','工','员'];
+  function validateIdentity(v){
+    if(v.length>20)return '输入太长，最多20字';
+    var lo=v.toLowerCase();
+    // 1) 敏感词拦截
+    for(var i=0;i<ILLEGAL_WORDS.length;i++){
+      if(lo.indexOf(ILLEGAL_WORDS[i])>-1)return '输入内容不合规，请更换';
+    }
+    // 2) 必须像职业：含中文，或命中英文职业词
+    var hasChinese=/[\u4e00-\u9fa5]/.test(v);
+    if(hasChinese)return ''; // 中文默认放行（职业判断交给后端模糊匹配）
+    // 3) 纯英文/数字/符号：须命中已知英文职业词，否则拦截
+    var cleaned=v.replace(/[^a-zA-Z0-9]/g,'');
+    if(OK_EN.indexOf(lo)>=0)return '';
+    if(/[a-zA-Z]/.test(v)&&!hasChinese)return '请用中文输入你的职业或身份（如「程序员」「教师」）';
+    return '请填写真实职业或身份';
+  }
 
   function selectIdentity(label){
     state.identity=label;state.retakes=0; // 首次进入，重置再测次数
@@ -476,6 +502,7 @@
         if(!fromStart){state.retakes++;updateRetakeUI();}
         startQuiz();
       }
+      else if(d&&d.code==='invalid_identity'){fromStart?openIdentity():go('result');toast(d.message||'输入内容不合规，请重新填写');}
       else{fromStart?openIdentity():toast('出题失败，请重试');}
     }).catch(function(){fromStart?openIdentity():toast('网络异常，请重试');});
   }
