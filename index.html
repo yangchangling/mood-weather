@@ -844,6 +844,7 @@
     document.getElementById('result-note').textContent='天气卡已生成，可保存分享，也可邀请朋友测 TA 的天气。';
     updateRetakeUI();
     window.__moodShare=w.share;
+    window.__weatherMeta={topKey:topKey,w:w,identity:state.identity};
     window.__inviteText=(state.identity?'作为'+state.identity+'，我':'我')+'测出了「'+w.type+'」，你是什么天气？8题2分钟，来测你的心情天气 👉 '+inviteUrl();
     go('result');
     var fill=document.getElementById('pbar-fill');fill.style.width='0%';
@@ -882,18 +883,14 @@
 
   /* ===== 再测 / 分享 ===== */
   document.getElementById('btn-again').addEventListener('click',retake);
-  document.getElementById('btn-share').addEventListener('click',function(){
-    var t=window.__moodShare||'';
-    if(navigator.share){navigator.share({title:'情绪气象台',text:t}).catch(function(){copyText(t,'分享文案已复制');});}
-    else{copyText(t,'分享文案已复制');}
-  });
+  document.getElementById('btn-share').addEventListener('click',drawWeatherCard);
   document.getElementById('btn-copy-invite').addEventListener('click',function(){
     copyText(window.__inviteText||'','邀请文案已复制');
   });
   document.getElementById('btn-save-invite').addEventListener('click',function(){
-    var cv=document.getElementById('invite-canvas'),a=document.createElement('a');
-    a.href=cv.toDataURL('image/png');a.download='情绪气象台-邀请海报.png';
-    document.body.appendChild(a);a.click();a.remove();toast('邀请海报已保存，快发给朋友');
+    var cv=document.getElementById('invite-canvas');
+    if(!cv||!cv.getContext)return;
+    showImageToSave(cv.toDataURL('image/png'),'情绪气象台-邀请海报.png');
   });
 
   function copyText(t,msg){
@@ -951,6 +948,73 @@
       ctx.fillStyle=inkSoft;ctx.font='500 18px sans-serif';ctx.fillText('看看你今天的心情天气',300,782);
       ctx.fillStyle=inkSoft;ctx.font='600 20px sans-serif';ctx.fillText('情绪气象台 · 仅供自我探索',300,852);
     }
+  }
+
+  /* ===== 图片保存到相册（长按保存 -> 从相册分享）===== */
+  function drawWeatherCard(){
+    var meta=window.__weatherMeta||{},key=meta.topKey||'sky',w=meta.w||{};
+    var cv=document.createElement('canvas');cv.width=600;cv.height=900;
+    var ctx=cv.getContext('2d');
+    var colors=POSTER_GRAD[key]||POSTER_GRAD.sky,dark=!!POSTER_DARK[key];
+    var ink=dark?'#1F3A5F':'#FFFFFF',inkSoft=dark?'rgba(31,58,95,.72)':'rgba(255,255,255,.92)';
+    var g=ctx.createLinearGradient(0,0,600,900);
+    if(colors.length===3){g.addColorStop(0,colors[0]);g.addColorStop(.5,colors[1]);g.addColorStop(1,colors[2]);}
+    else{g.addColorStop(0,colors[0]);g.addColorStop(1,colors[1]);}
+    ctx.fillStyle=g;ctx.fillRect(0,0,600,900);
+    ctx.fillStyle=dark?'rgba(255,255,255,.4)':'rgba(255,255,255,.16)';
+    ctx.beginPath();ctx.arc(80,120,120,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.arc(540,760,150,0,Math.PI*2);ctx.fill();
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillStyle=inkSoft;ctx.font='600 26px sans-serif';
+    ctx.fillText(meta.identity?('我的情绪天气 · '+meta.identity):'我的情绪天气',300,96);
+    var svgStr='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="'+(dark?'#1F3A5F':'#FFFFFF')+'" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">'+String(ICONS[key]||'')+'</svg>';
+    var img=new Image();
+    function paint(){
+      ctx.fillStyle=ink;ctx.font='800 52px sans-serif';ctx.fillText(w.type||'',300,330);
+      ctx.fillStyle=inkSoft;ctx.font='600 30px sans-serif';
+      ctx.fillText(meta.identity?('身份 · '+meta.identity+' · '+w.temp):w.temp,300,392);
+      ctx.strokeStyle=dark?'rgba(31,58,95,.18)':'rgba(255,255,255,.4)';ctx.lineWidth=2;
+      ctx.beginPath();ctx.moveTo(180,446);ctx.lineTo(420,446);ctx.stroke();
+      ctx.fillStyle=ink;ctx.font='800 42px sans-serif';ctx.fillText('今天，我是什么天气？',300,520);
+      ctx.fillStyle=inkSoft;ctx.font='500 26px sans-serif';ctx.fillText('8 道题 · 2 分钟 · 专属天气卡',300,578);
+      ctx.fillStyle=dark?'rgba(255,255,255,.85)':'rgba(255,255,255,.2)';rr(ctx,70,650,460,120,24);ctx.fill();
+      ctx.fillStyle=ink;ctx.font='700 24px sans-serif';ctx.fillText('保存到相册，分享我的今日天气',300,712);
+      ctx.fillStyle=inkSoft;ctx.font='500 20px sans-serif';ctx.fillText('情绪气象台 · 仅供自我探索与娱乐',300,852);
+      showImageToSave(cv.toDataURL('image/png'),'情绪气象台-天气卡.png');
+    }
+    img.onload=function(){ctx.drawImage(img,235,128,130,130);paint();};
+    img.onerror=paint;
+    img.src='data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(svgStr)));
+  }
+  function showImageToSave(dataUrl,label){
+    var ov=document.createElement('div');
+    ov.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(10,20,35,.84);z-index:130;display:flex;align-items:center;justify-content:center;padding:18px;box-sizing:border-box;';
+    var box=document.createElement('div');
+    box.style.cssText='background:#fff;border-radius:18px;max-width:460px;width:100%;max-height:92vh;overflow:auto;padding:18px 16px 16px;box-sizing:border-box;';
+    var title=document.createElement('div');
+    title.textContent='保存到相册，再分享给朋友';
+    title.style.cssText='font-size:16px;font-weight:800;color:#1F3A5F;text-align:center;margin-bottom:4px;';
+    var img=document.createElement('img');
+    img.src=dataUrl;img.alt=label;
+    img.style.cssText='width:100%;height:auto;border-radius:12px;display:block;margin:10px 0;box-shadow:0 6px 20px rgba(0,0,0,.12);';
+    var hint=document.createElement('div');
+    hint.innerHTML='<b>长按上方图片</b> → 选择「保存到相册 / 保存照片」<br>保存后，再从相册（如微信）把图片发给朋友';
+    hint.style.cssText='font-size:13px;color:#5A6B82;line-height:1.8;text-align:center;margin:4px 0 12px;';
+    var row=document.createElement('div');
+    row.style.cssText='display:flex;gap:10px;';
+    var dl=document.createElement('a');
+    dl.href=dataUrl;dl.download=label||'情绪气象台-图片.png';
+    dl.textContent='保存图片';
+    dl.style.cssText='flex:1;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#5FA8E8,#3F83D8);color:#fff;border-radius:12px;height:44px;font-size:15px;font-weight:700;text-decoration:none;cursor:pointer;';
+    var close=document.createElement('button');
+    close.type='button';close.textContent='关闭';
+    close.style.cssText='flex:1;border:1.5px solid #D9E2EE;background:#fff;color:#1F3A5F;border-radius:12px;height:44px;font-size:15px;font-weight:700;cursor:pointer;';
+    close.addEventListener('click',function(){ov.remove();});
+    row.appendChild(dl);row.appendChild(close);
+    box.appendChild(title);box.appendChild(img);box.appendChild(hint);box.appendChild(row);
+    ov.appendChild(box);
+    ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});
+    document.body.appendChild(ov);
   }
 
   go('intro');
