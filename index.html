@@ -215,7 +215,7 @@
             <input id="key" type="text" placeholder="请输入下单获得的密钥" autocomplete="off" autocapitalize="characters" spellcheck="false">
           </div>
           <button class="btn" id="btn-enter" style="margin-top:12px;">我同意并开始测试</button>
-          <p class="key-hint">下单后会自动收到密钥，凭它解锁测评；点击「我同意并开始测试」即视为同意，无额外弹窗。</p>
+          <p class="key-hint">点击「我同意并开始测试」即视为同意 <button class="foot-link" id="key-privacy" type="button">《隐私政策》</button>，可点开查看全文；下单后会自动收到密钥，凭它解锁测评。</p>
           <p class="key-err" id="key-err"></p>
         </div>
       </div>
@@ -437,6 +437,8 @@
   }
   var privacyBtn=document.getElementById('btn-privacy');
   if(privacyBtn)privacyBtn.addEventListener('click',openPrivacy);
+  var keyPrivacy=document.getElementById('key-privacy');
+  if(keyPrivacy)keyPrivacy.addEventListener('click',openPrivacy);
 
   // 单独同意留痕：best-effort，失败不阻断测评
   function recordConsent(){
