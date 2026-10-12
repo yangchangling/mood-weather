@@ -30,6 +30,11 @@ async function hmacHex(secret: string, data: string): Promise<string> {
 async function hashKey(raw: string): Promise<string> {
   return hmacHex(Deno.env.get("HASH_SECRET") ?? "", "lic:" + cleanKey(raw));
 }
+function randHex(n: number): string {
+  const chars = "0123456789ABCDEF"; let s = "";
+  for (let i = 0; i < n; i++) s += chars[Math.floor(Math.random() * 16)];
+  return s;
+}
 
 Deno.serve(async (req) => {
   const origin = req.headers.get("Origin") || "";
@@ -59,20 +64,43 @@ Deno.serve(async (req) => {
 
   try {
     if (action === "stats") {
-      const [lic, dev, cache, bank, used, disabled] = await Promise.all([
+      const [lic, dev, cache, bank, used, disabled, unused, sold] = await Promise.all([
         supabase.from("license_keys").select("id", { count: "exact", head: true }),
         supabase.from("license_devices").select("id", { count: "exact", head: true }),
         supabase.from("question_cache").select("id", { count: "exact", head: true }),
         supabase.from("question_bank").select("id", { count: "exact", head: true }),
         supabase.from("license_keys").select("id", { count: "exact", head: true }).eq("status", "used"),
         supabase.from("license_keys").select("id", { count: "exact", head: true }).eq("status", "disabled"),
+        supabase.from("license_keys").select("id", { count: "exact", head: true }).eq("status", "unused"),
+        supabase.from("key_sales").select("id", { count: "exact", head: true }),
       ]);
       return respond(origin, 200, {
         ok: true, stats: {
           keys_total: lic.count ?? 0, keys_used: used.count ?? 0, keys_disabled: disabled.count ?? 0,
+          keys_unused: unused.count ?? 0, sales_sold: sold.count ?? 0,
           devices: dev.count ?? 0, cache_rows: cache.count ?? 0, bank_identities: bank.count ?? 0,
         },
       });
+    }
+
+    // ===== 补货（A）：生成新密钥，明文仅在此响应返回给卖家一次，不落库 =====
+    if (action === "gen") {
+      const count = parseInt(body.count, 10);
+      if (!Number.isFinite(count) || count < 1 || count > 50) return respond(origin, 400, { ok: false, code: "bad_count" });
+      const added: { key: string; key_display: string }[] = [];
+      let guard = 0;
+      while (added.length < count && guard < 300) {
+        guard++;
+        const plain = "MOOD-" + randHex(4) + "-" + randHex(4);
+        const h = await hashKey(plain);
+        const { data: exist } = await supabase.from("license_keys").select("id").eq("key_hash", h).maybeSingle();
+        if (exist) continue;
+        const display = plain.slice(0, 5) + "••••" + plain.slice(-5);
+        const { error } = await supabase.from("license_keys").insert({ key_hash: h, key_display: display, status: "unused" });
+        if (error) return respond(origin, 500, { ok: false, code: "server" });
+        added.push({ key: plain, key_display: display });
+      }
+      return respond(origin, 200, { ok: true, count: added.length, keys: added });
     }
 
     if (action === "list") {
@@ -112,6 +140,19 @@ Deno.serve(async (req) => {
     }
     if (action === "clear-expiry") {
       const { error } = await supabase.from("license_keys").update({ expires_at: null }).eq("key_hash", kh);
+      return respond(origin, error ? 500 : 200, error ? { ok: false, code: "server" } : { ok: true });
+    }
+
+    // ===== 对账（C）：记录"哪把密钥发给了哪个订单"，台账只存脱敏标识，不含明文 =====
+    if (action === "log-sale") {
+      const orderNo = String(body.order_no || "").trim().slice(0, 64);
+      const buyer = String(body.buyer || "").trim().slice(0, 64);
+      if (!orderNo && !buyer) return respond(origin, 400, { ok: false, code: "no_order" });
+      const { data: row } = await supabase.from("license_keys").select("key_display").eq("key_hash", kh).maybeSingle();
+      if (!row) return respond(origin, 200, { ok: false, code: "invalid" });
+      const { error } = await supabase.from("key_sales").insert({
+        key_hash: kh, key_display: row.key_display, order_no: orderNo || null, buyer: buyer || null,
+      });
       return respond(origin, error ? 500 : 200, error ? { ok: false, code: "server" } : { ok: true });
     }
 
