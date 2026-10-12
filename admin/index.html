@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>情绪气象台 · 运营后台（本地）</title>
+<style>
+  :root{--ink:#1F3A5F;--ink-soft:#5A6B85;--blue:#3E7BF6;--bg:#EEF3FA;--card:#fff;--line:#D6E0EF;--ok:#2E9E6B;--warn:#E2A03C;--danger:#E2506E;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background:var(--bg);color:var(--ink);min-height:100vh;padding:20px;}
+  .wrap{max-width:760px;margin:0 auto;}
+  h1{font-size:20px;margin-bottom:4px;}
+  .sub{color:var(--ink-soft);font-size:13px;margin-bottom:20px;}
+  .tag{display:inline-block;background:#EAF0FA;color:var(--blue);font-size:11px;padding:2px 8px;border-radius:20px;margin-left:8px;vertical-align:middle;}
+  .card{background:var(--card);border-radius:14px;padding:18px;margin-bottom:16px;box-shadow:0 2px 10px rgba(31,58,95,.06);}
+  .card h3{font-size:15px;margin-bottom:12px;}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:10px;}
+  .stat{background:#F6F9FE;border:1px solid var(--line);border-radius:10px;padding:10px;text-align:center;}
+  .stat b{display:block;font-size:20px;color:var(--ink);}
+  .stat span{font-size:11px;color:var(--ink-soft);}
+  .alert{background:#FDF3E3;border:1px solid #F2D8A8;color:#9A6B14;border-radius:10px;padding:10px 12px;font-size:13px;margin-top:12px;}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:8px;}
+  input,button{font-family:inherit;font-size:14px;}
+  input[type=text],input[type=number],input[type=password]{padding:9px 12px;border:1px solid var(--line);border-radius:9px;outline:none;}
+  input[type=text]:focus,input[type=number]:focus,input[type=password]:focus{border-color:var(--blue);}
+  button{border:none;border-radius:9px;padding:9px 14px;cursor:pointer;font-size:14px;}
+  .btn-primary{background:var(--blue);color:#fff;}
+  .btn-ghost{background:#fff;border:1px solid var(--line);color:var(--ink);}
+  .btn-danger{background:var(--danger);color:#fff;}
+  .btn-sm{padding:5px 10px;font-size:12px;border-radius:7px;}
+  .keys{width:100%;}
+  .key-line{display:flex;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid #EEF1F6;flex-wrap:wrap;}
+  .key-line:last-child{border-bottom:none;}
+  .plain{font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:600;color:#0B4B8A;font-size:13px;}
+  .mask{color:var(--ink-soft);font-family:ui-monospace,monospace;font-size:12px;}
+  .sale-in{flex:1;min-width:120px;display:flex;gap:6px;}
+  .sale-in input{flex:1;padding:6px 8px;font-size:12px;}
+  .table{width:100%;border-collapse:collapse;font-size:13px;}
+  .table th,.table td{text-align:left;padding:7px 6px;border-bottom:1px solid #EEF1F6;vertical-align:middle;}
+  .table th{color:var(--ink-soft);font-weight:600;font-size:12px;}
+  .st-unused{color:var(--ok);font-weight:600;}
+  .st-used{color:var(--warn);font-weight:600;}
+  .st-disabled{color:var(--danger);font-weight:600;}
+  .empty{color:var(--ink-soft);font-size:13px;text-align:center;padding:16px 0;}
+  .login-card{max-width:360px;margin:10vh auto;}
+  .login-card .card{padding:26px;}
+  .hint{font-size:12px;color:var(--ink-soft);line-height:1.6;margin-top:10px;}
+  .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:rgba(31,58,95,.92);color:#fff;padding:9px 16px;border-radius:10px;font-size:13px;z-index:99;}
+  .toast.err{background:rgba(226,80,110,.95);}
+  .warn-note{font-size:12px;color:#9A6B14;background:#FDF3E3;border:1px solid #F2D8A8;border-radius:8px;padding:8px 10px;margin-bottom:10px;}
+  footer{margin-top:24px;text-align:center;color:var(--ink-soft);font-size:12px;}
+  @media(max-width:520px){.stats{grid-template-columns:repeat(3,1fr);}.key-line{flex-direction:column;align-items:stretch;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ===== 登录视图 ===== -->
+  <section id="view-login">
+    <div class="login-card">
+      <div class="card">
+        <h1>情绪气象台 · 运营后台</h1>
+        <p class="sub">本地工具 · 仅供运营者本人使用，请勿对外分享或发布</p>
+        <div class="row">
+          <input type="password" id="admin-input" placeholder="请输入 MANAGE_KEY_ADMIN 管理密钥" style="flex:1;">
+        </div>
+        <button class="btn-primary" id="btn-login" style="width:100%;margin-top:4px;">登录后台</button>
+        <p class="hint">管理密钥仅保存在本页会话中，不写入文件、不对外暴露。本页面请用浏览器本地打开，不要发布到任何公网地址。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 主界面视图 ===== -->
+  <section id="view-main" style="display:none;">
+    <h1>情绪气象台 · 运营后台 <span class="tag" id="env-tag">本地</span></h1>
+    <p class="sub">管理密钥已与会话绑定 · <a href="javascript:void(0)" id="btn-logout" style="color:var(--danger);">退出登录</a></p>
+
+    <!-- 库存 -->
+    <div class="card">
+      <h3>库存与销量</h3>
+      <div class="stats" id="stats-box"></div>
+      <div id="stock-alert"></div>
+      <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+        <span style="font-size:13px;color:var(--ink-soft);">补货数量</span>
+        <input type="number" id="gen-count" value="5" min="1" max="50" style="width:80px;">
+        <button class="btn-primary" id="btn-gen">生成新密钥（补货）</button>
+      </div>
+    </div>
+
+    <!-- 补货结果 -->
+    <div class="card" id="gen-card" style="display:none;">
+      <h3>本次补货明文密钥（<b id="gen-count-txt" style="color:var(--danger);">仅显示一次</b>，请立即保存并逐条登记发货）</h3>
+      <div class="warn-note">明文密钥系统不存储，关掉本页即无法再取回。请在下方直接填写订单号/买家后点「登记」，或先复制保存。</div>
+      <div id="gen-keys"></div>
+    </div>
+
+    <!-- 密钥列表 -->
+    <div class="card">
+      <h3>密钥列表（脱敏）</h3>
+      <div style="margin-bottom:10px;display:flex;gap:8px;">
+        <input type="text" id="list-filter" placeholder="筛选，如：9A50 或 程序员……（按脱敏后缀）" style="flex:1;">
+        <button class="btn-ghost" id="btn-refresh">刷新</button>
+      </div>
+      <div id="list-body"><div class="empty">加载中…</div></div>
+    </div>
+
+    <footer>情绪气象台运营后台 · 数据来源 Supabase Edge Function · 请勿对外暴露</footer>
+  </section>
+</div>
+
+<script>
+  var SUPABASE_URL='https://nyynghsbcfkbmgesnfzx.supabase.co';
+  var SUPABASE_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im55eW5naHNiY2ZrYm1nZXNuZnp4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE3NDgzMDksImV4cCI6MjEwNzMyNDMwOX0.WvaY8nY9HxdcV9vBOmLkclc5koPq6LxEWMzhrZkRmlY';
+  var FUNC=SUPABASE_URL+'/functions/v1/manage-key';
+  var adminKey='';
+  function toast(msg,err){var t=document.createElement('div');t.textContent=msg;t.className='toast'+(err?' err':'');document.body.appendChild(t);setTimeout(function(){t.remove();},2400);}
+  function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+
+  // ===== API 封装（x-admin-key 头鉴权） =====
+  function api(action,payload){
+    var body=payload||{};
+    body.action=action;
+    return fetch(FUNC,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','apikey':SUPABASE_ANON,'Authorization':'Bearer '+SUPABASE_ANON,'x-admin-key':adminKey},
+      body:JSON.stringify(body)
+    }).then(function(r){return r.json();});
+  }
+
+  // ===== 登录 =====
+  function enterMain(){
+    document.getElementById('view-login').style.display='none';
+    document.getElementById('view-main').style.display='block';
+    loadAll();
+  }
+  document.getElementById('btn-login').addEventListener('click',function(){
+    var v=document.getElementById('admin-input').value.trim();
+    if(!v){toast('请输入管理密钥',1);return;}
+    adminKey=v;
+    api('stats').then(function(d){
+      if(d&&d.ok){sessionStorage.setItem('mw_admin',adminKey);toast('登录成功');enterMain();}
+      else{toast((d&&d.code)||'登录失败：管理密钥不正确',1);adminKey='';}
+    }).catch(function(){toast('网络异常，请检查网络后重试',1);adminKey='';});
+  });
+  document.getElementById('admin-input').addEventListener('keydown',function(e){if(e.key==='Enter'){document.getElementById('btn-login').click();}});
+  document.getElementById('btn-logout').addEventListener('click',function(){adminKey='';sessionStorage.removeItem('mw_admin');location.reload();});
+
+  // ===== 库存 =====
+  function renderStats(s){
+    var box=document.getElementById('stats-box');box.innerHTML='';
+    var items=[['keys_unused','可用密钥'],['keys_used','已用密钥'],['keys_disabled','已停用'],['sales_sold','已售登记'],['keys_total','密钥总数'],['devices','绑定设备'],['cache_rows','题目缓存'],['bank_identities','题库身份']];
+    items.forEach(function(it){
+      var el=document.createElement('div');el.className='stat';
+      el.innerHTML='<b>'+esc(s[it[0]]==null?'-':s[it[0]])+'</b><span>'+it[1]+'</span>';
+      box.appendChild(el);
+    });
+    var alertBox=document.getElementById('stock-alert');alertBox.innerHTML='';
+    if((s.keys_unused||0)<5){
+      var a=document.createElement('div');a.className='alert';
+      a.innerHTML='<b>库存告警：可用密钥仅剩 '+esc(s.keys_unused)+' 把。</b>请在上方设置数量后点「生成新密钥（补货）」及时补货。';
+      alertBox.appendChild(a);
+    }
+  }
+
+  // ===== 补货 gen =====
+  var lastGen=[]; // 记录本次补货明文，供登记
+  document.getElementById('btn-gen').addEventListener('click',function(){
+    var n=parseInt(document.getElementById('gen-count').value,10);
+    if(!n||n<1||n>50){toast('请输入 1-50 的补货数量',1);return;}
+    var btn=document.getElementById('btn-gen');btn.disabled=true;btn.textContent='生成中…';
+    api('gen',{count:n}).then(function(d){
+      btn.disabled=false;btn.textContent='生成新密钥（补货）';
+      if(d&&d.ok&&d.keys&&d.keys.length){
+        lastGen=d.keys;
+        renderGen(d.keys);loadAll();
+        toast('已生成 '+d.keys.length+' 把密钥，明文仅此一次，请立即登记');
+      }else{toast((d&&d.code)||'生成失败',1);}
+    }).catch(function(){btn.disabled=false;btn.textContent='生成新密钥（补货）';toast('网络异常',1);});
+  });
+  function renderGen(keys){
+    var card=document.getElementById('gen-card');card.style.display='block';
+    document.getElementById('gen-count-txt').textContent=keys.length+' 把';
+    var box=document.getElementById('gen-keys');box.innerHTML='';
+    keys.forEach(function(k){
+      var line=document.createElement('div');line.className='key-line';
+      var p=document.createElement('span');p.className='plain';p.textContent=k.key;
+      var copy=document.createElement('button');copy.className='btn-ghost btn-sm';copy.textContent='复制';
+      copy.addEventListener('click',function(){
+        var ta=document.createElement('textarea');ta.value=k.key;document.body.appendChild(ta);ta.select();
+        try{document.execCommand('copy');toast('已复制 '+k.key);}catch(e){}
+        ta.remove();
+      });
+      var sale=document.createElement('div');sale.className='sale-in';
+      var oi=document.createElement('input');oi.type='text';oi.placeholder='订单号';
+      var bi=document.createElement('input');bi.type='text';bi.placeholder='买家（昵称）';
+      var ob=document.createElement('button');ob.className='btn-primary btn-sm';ob.textContent='登记';
+      ob.addEventListener('click',function(){
+        if(!oi.value.trim()&&!bi.value.trim()){toast('请填订单号或买家',1);return;}
+        api('log-sale',{key:k.key,order_no:oi.value.trim(),buyer:bi.value.trim()}).then(function(d){
+          if(d&&d.ok){toast('已登记 '+k.key_display);oi.value='';bi.value='';ob.disabled=true;ob.textContent='已登记';loadAll();}
+          else{toast((d&&d.code)||'登记失败',1);}
+        });
+      });
+      sale.appendChild(oi);sale.appendChild(bi);sale.appendChild(ob);
+      line.appendChild(p);line.appendChild(copy);line.appendChild(sale);
+      box.appendChild(line);
+    });
+  }
+
+  // ===== 密钥列表 =====
+  var allKeys=[];
+  function loadList(){
+    api('list').then(function(d){
+      if(!d||!d.ok){toast((d&&d.code)||'加载列表失败',1);return;}
+      allKeys=d.keys||[];
+      renderList('');
+    });
+  }
+  function renderList(kw){
+    var box=document.getElementById('list-body');box.innerHTML='';
+    var k=(kw||'').trim().toUpperCase();
+    var list=allKeys.filter(function(r){return !k||(r.key_display||'').toUpperCase().indexOf(k)>=0;});
+    if(!list.length){var e=document.createElement('div');e.className='empty';e.textContent='没有匹配的密钥';box.appendChild(e);return;}
+    var table=document.createElement('table');table.className='table';
+    var head='<tr><th>密钥（脱敏）</th><th>状态</th><th>过期</th><th>操作</th></tr>';
+    table.innerHTML=head;
+    list.slice(0,50).forEach(function(r){
+      var st=r.status;
+      var stCls=st==='unused'?'st-unused':(st==='used'?'st-used':'st-disabled');
+      var stTxt=st==='unused'?'可用':(st==='used'?'已用':'已停用');
+      var tr=document.createElement('tr');
+      var op='';
+      if(st==='disabled'){op='<button class="btn-ghost btn-sm" data-act="enable">启用</button>';}
+      else{op='<button class="btn-danger btn-sm" data-act="disable">停用</button>';}
+      tr.innerHTML='<td class="mask">'+esc(r.key_display)+'</td>'+
+        '<td><span class="'+stCls+'">'+stTxt+'</span></td>'+
+        '<td class="mask">'+esc(r.expires_at?r.expires_at.slice(0,10):'—')+'</td>'+
+        '<td>'+op+'</td>';
+      var b=tr.querySelector('button');
+      b.addEventListener('click',function(){
+        var act=b.getAttribute('data-act');
+        api(act,{key_hash:r.key_hash}).then(function(dd){
+          if(dd&&dd.ok){toast(act==='disable'?'已停用':'已启用');loadAll();}
+          else{toast((dd&&dd.code)||'操作失败',1);}
+        });
+      });
+      table.appendChild(tr);
+    });
+    box.appendChild(table);
+    if(list.length>50){var more=document.createElement('div');more.className='empty';more.textContent='仅显示前 50 条';box.appendChild(more);}
+  }
+  document.getElementById('list-filter').addEventListener('input',function(){renderList(this.value);});
+  document.getElementById('btn-refresh').addEventListener('click',function(){loadList();});
+
+  function loadAll(){api('stats').then(function(d){if(d&&d.ok)renderStats(d.stats);});loadList();}
+
+  // ===== 启动：恢复会话或停留登录 =====
+  (function(){
+    var saved='';
+    try{saved=sessionStorage.getItem('mw_admin')||'';}catch(e){}
+    if(saved){adminKey=saved;enterMain();}
+  })();
+</script>
+</body>
+</html>
