@@ -1,3 +1,4 @@
 _selftest/
 _shots/
 gh_login.log
+.db-password

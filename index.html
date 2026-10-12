@@ -242,17 +242,22 @@
 (function(){
   "use strict";
 
-  /* ===== 密钥校验（演示层）=====
-     当前任意密钥（去连字符后≥6位）即通过。
-     正式版改为 fetch(SUPABASE_URL+'/functions/v1/verify-key',{method:'POST',body:JSON.stringify({key:key})})，
-     由 Supabase Edge Function 校验密钥有效且未使用。 */
-  function verifyKey(key){
-    return new Promise(function(resolve){
-      setTimeout(function(){
-        var cleaned = (key||'').trim().toUpperCase().replace(/[- ]/g,'');
-        if(cleaned.length>=6){ resolve({ok:true}); }
-        else{ resolve({ok:false,msg:'密钥格式不正确，请检查后重试'}); }
-      },350);
+  /* ===== 密钥校验（Supabase Edge Function）===== */
+  var SUPABASE_URL='https://nyynghsbcfkbmgesnfzx.supabase.co';
+  var SUPABASE_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im55eW5naHNiY2ZrYm1nZXNuZnp4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE3NDgzMDksImV4cCI6MjEwNzMyNDMwOX0.WvaY8nY9HxdcV9vBOmLkclc5koPq6LxEWMzhrZkRmlY';
+  function verifyKey(raw){
+    var cleaned=(raw||'').trim().toUpperCase().replace(/[- ]/g,'');
+    if(cleaned.length<6){return Promise.resolve({ok:false,msg:'密钥格式不正确，请检查后重试'});}
+    return fetch(SUPABASE_URL+'/functions/v1/verify-key',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','apikey':SUPABASE_ANON,'Authorization':'Bearer '+SUPABASE_ANON},
+      body:JSON.stringify({key:cleaned})
+    }).then(function(r){return r.json();}).then(function(d){
+      if(d&&d.ok){return {ok:true};}
+      var map={invalid:'密钥无效，请检查后重试',disabled:'该密钥已停用',no_key:'请输入测评密钥',bad_body:'密钥格式不正确，请检查后重试'};
+      return {ok:false,msg:(d&&map[d.code])||'密钥无效，请检查后重试'};
+    }).catch(function(){
+      return {ok:false,msg:'网络异常，请检查网络后重试'};
     });
   }
 
