@@ -43,21 +43,44 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders(origin) });
   if (req.method !== "POST") return respond(origin, 405, { ok: false, code: "method" });
   // 鉴权即来源防线：任何来源都放行 CORS（见 corsHeaders），真正授权由 MANAGE_KEY_ADMIN 强鉴权保证
-
-  let body: any = {};
-  try { body = await req.json(); } catch { return respond(origin, 400, { ok: false, code: "bad_body" }); }
-
-  // 鉴权：ADMIN_KEY 经自定义 x-admin-key 头传递（不走 body，避免落入访问日志；Supabase 网关会拦截 Authorization 头做 JWT 校验，故不用 Bearer）
-  const adminKey = (req.headers.get("x-admin-key") || "").trim();
-  if (!adminKey || adminKey !== (Deno.env.get("MANAGE_KEY_ADMIN") || "")) {
-    return respond(origin, 401, { ok: false, code: "unauthorized" });
-  }
-
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     { auth: { persistSession: false } },
   );
+
+  // ---- 登录失败限流（暴力破解防护）----
+  // 来源 IP（网关注入的 x-forwarded-for），做 HMAC 哈希后落库，不存明文 IP
+  const rawIp = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "unknown";
+  const ipHash = await hmacHex(Deno.env.get("HASH_SECRET") ?? "", "ip:" + rawIp);
+  const win30 = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+  const win15 = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+
+  // 全局维度：30 分钟窗口内失败总数超阈值 → 全局锁定（防分布式爆破）
+  const { count: globalFail } = await supabase
+    .from("admin_fail_log").select("id", { count: "exact", head: true })
+    .gte("created_at", win30);
+  if ((globalFail ?? 0) >= 200) return respond(origin, 429, { ok: false, code: "locked_global" });
+
+  // IP 维度：15 分钟窗口内该 IP 失败超阈值 → 锁定该来源
+  const { count: ipFail } = await supabase
+    .from("admin_fail_log").select("id", { count: "exact", head: true })
+    .eq("ip_hash", ipHash)
+    .gte("created_at", win15);
+  if ((ipFail ?? 0) >= 10) return respond(origin, 429, { ok: false, code: "locked_ip" });
+
+  // 鉴权：ADMIN_KEY 经自定义 x-admin-key 头传递（不走 body，避免落入访问日志；Supabase 网关会拦截 Authorization 头做 JWT 校验，故不用 Bearer）
+  const adminKey = (req.headers.get("x-admin-key") || "").trim();
+  if (!adminKey || adminKey !== (Deno.env.get("MANAGE_KEY_ADMIN") || "")) {
+    // 记录本次失败（用于限流窗口）；失败不重置，成功才清理
+    await supabase.from("admin_fail_log").insert({ ip_hash: ipHash }).then(() => {});
+    return respond(origin, 401, { ok: false, code: "unauthorized" });
+  }
+  // 鉴权成功：清除该来源的历史失败记录（解除限流）
+  await supabase.from("admin_fail_log").delete().eq("ip_hash", ipHash);
+
+  let body: any = {};
+  try { body = await req.json(); } catch { return respond(origin, 400, { ok: false, code: "bad_body" }); }
 
   const action = String(body.action || "");
   const days = parseInt(body.days, 10);
