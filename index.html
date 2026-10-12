@@ -301,7 +301,7 @@
   var SUPABASE_URL='https://nyynghsbcfkbmgesnfzx.supabase.co';
   var SUPABASE_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im55eW5naHNiY2ZrYm1nZXNuZnp4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE3NDgzMDksImV4cCI6MjEwNzMyNDMwOX0.WvaY8nY9HxdcV9vBOmLkclc5koPq6LxEWMzhrZkRmlY';
   function verifyKey(raw){
-    var cleaned=(raw||'').trim().toUpperCase().replace(/[- ]/g,'');
+    var cleaned=(raw||'').trim().toUpperCase().replace(/\s+/g,'');
     if(cleaned.length<6){return Promise.resolve({ok:false,msg:'密钥格式不正确，请检查后重试'});}
     return fetch(SUPABASE_URL+'/functions/v1/verify-key',{
       method:'POST',
