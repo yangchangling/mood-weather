@@ -10,7 +10,7 @@ function corsHeaders(origin: string): Record<string, string> {
   const allow = origin && origin.endsWith(".github.io") ? origin : "*";
   return {
     "Access-Control-Allow-Origin": allow,
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-admin-key",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Content-Type": "application/json",
   };
@@ -40,7 +40,8 @@ Deno.serve(async (req) => {
   const origin = req.headers.get("Origin") || "";
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders(origin) });
   if (req.method !== "POST") return respond(origin, 405, { ok: false, code: "method" });
-  if (origin && !origin.endsWith(".github.io")) {
+  // 来源强校验：白名单 *.github.io；同时允许本地运营后台（file:// 下 Origin 为 null）——manage-key 本身有 MANAGE_KEY_ADMIN 强鉴权兜底
+  if (origin && origin !== "null" && !origin.endsWith(".github.io")) {
     return respond(origin, 403, { ok: false, code: "forbidden" });
   }
 
@@ -106,16 +107,17 @@ Deno.serve(async (req) => {
     if (action === "list") {
       const { data } = await supabase
         .from("license_keys")
-        .select("key_display,status,expires_at,used_at,device_limit")
+        .select("key_hash,key_display,status,expires_at,used_at,device_limit")
         .order("created_at", { ascending: false })
         .limit(200);
       return respond(origin, 200, { ok: true, keys: (data || []).map((r) => ({ ...r, key: r.key_display })) });
     }
 
-    // 其余动作均需密钥，先哈希化
+    // 其余动作均需密钥：优先用 key_hash 直接定位，否则用明文哈希定位
+    const keyHashParam = String(body.key_hash || "").trim();
     const key = String(body.key || "").trim();
-    if (!key) return respond(origin, 400, { ok: false, code: "no_key" });
-    const kh = await hashKey(key);
+    if (!keyHashParam && !key) return respond(origin, 400, { ok: false, code: "no_key" });
+    const kh = keyHashParam || await hashKey(key);
 
     if (action === "list-devices") {
       const { data } = await supabase.from("license_devices").select("device_id,first_seen,last_seen").eq("key_hash", kh);
