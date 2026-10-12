@@ -203,11 +203,19 @@ function validate(q: any): boolean {
   }
   return true;
 }
+// 入库前剥离 HTML 标签 + 转义特殊字符（杜绝 AI 输出存储型 XSS，前端再转义兜底）
+function sanitizeText(s: string): string {
+  return String(s)
+    .replace(/<[^>]*>/g, "")
+    .replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+}
 function normalize(q: any[]): any[] {
   return q.map((item, i) => ({
-    badge: typeof item.badge === "string" ? item.badge : DEFAULT_BADGES[i],
-    title: item.title,
-    options: item.options.map((o: any) => ({ text: o.text, w: o.w })),
+    badge: typeof item.badge === "string" ? sanitizeText(item.badge) : DEFAULT_BADGES[i],
+    title: sanitizeText(item.title),
+    options: item.options.map((o: any) => ({ text: sanitizeText(o.text), w: o.w })),
   }));
 }
 

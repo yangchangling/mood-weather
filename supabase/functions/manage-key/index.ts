@@ -42,8 +42,8 @@ Deno.serve(async (req) => {
   let body: any = {};
   try { body = await req.json(); } catch { return respond(origin, 400, { ok: false, code: "bad_body" }); }
 
-  // 鉴权：ADMIN_KEY 校验
-  const adminKey = String(body.admin_key || "");
+  // 鉴权：ADMIN_KEY 经自定义 x-admin-key 头传递（不走 body，避免落入访问日志；Supabase 网关会拦截 Authorization 头做 JWT 校验，故不用 Bearer）
+  const adminKey = (req.headers.get("x-admin-key") || "").trim();
   if (!adminKey || adminKey !== (Deno.env.get("MANAGE_KEY_ADMIN") || "")) {
     return respond(origin, 401, { ok: false, code: "unauthorized" });
   }
