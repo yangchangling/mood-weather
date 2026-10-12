@@ -94,6 +94,7 @@
   .weather-card{position:relative;border-radius:var(--radius);overflow:hidden;color:#fff;text-align:center;padding:30px 22px 24px;box-shadow:0 18px 44px rgba(31,58,95,.22);}
   .wc-icon{width:96px;height:96px;margin:0 auto;filter:drop-shadow(0 8px 16px rgba(0,0,0,.18));animation:float 3.6s ease-in-out infinite;}
   @keyframes float{0%,100%{transform:translateY(0);}50%{transform:translateY(-6px);}}
+  .wc-id{display:inline-block;margin-bottom:8px;background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.45);padding:3px 14px;border-radius:20px;font-size:12.5px;font-weight:700;}
   .wc-temp{font-size:42px;font-weight:800;margin-top:6px;}
   .wc-type{font-size:23px;font-weight:800;margin-top:3px;letter-spacing:.5px;}
   .wc-desc{font-size:14px;opacity:.96;max-width:340px;margin:10px auto 0;line-height:1.65;}
@@ -130,6 +131,29 @@
   .invite-actions .btn{min-height:48px;padding:12px 20px;font-size:15px;}
 
   .foot-note{text-align:center;font-size:12px;color:var(--ink-soft);margin-top:22px;opacity:.85;}
+  .id-head{text-align:center;margin-bottom:16px;}
+  .id-title{font-size:22px;font-weight:800;}
+  .id-sub{font-size:13.5px;color:var(--ink-soft);margin-top:4px;}
+  .id-search{display:flex;align-items:center;gap:9px;background:rgba(255,255,255,.9);border:1.5px solid var(--line);border-radius:14px;padding:11px 14px;color:var(--ink-soft);margin-bottom:16px;}
+  .id-search:focus-within{border-color:var(--accent);}
+  .id-search input{flex:1;min-width:0;border:none;outline:none;font-family:inherit;font-size:15px;background:transparent;color:var(--ink);}
+  .id-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(94px,1fr));gap:9px;}
+  .id-chip{border:1.5px solid var(--line);background:rgba(255,255,255,.9);border-radius:14px;padding:10px 8px;text-align:center;font-size:13.5px;font-weight:600;color:var(--ink);cursor:pointer;transition:all .15s ease;font-family:inherit;}
+  .id-chip:hover{border-color:var(--accent);background:linear-gradient(135deg,rgba(95,168,232,.16),rgba(246,185,59,.1));}
+  .id-chip[hidden]{display:none;}
+  .id-empty{grid-column:1/-1;text-align:center;font-size:13px;color:var(--ink-soft);padding:14px 0;}
+  .id-custom{margin-top:16px;text-align:center;}
+  .id-custom-toggle{background:none;border:none;color:var(--accent);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;padding:8px;}
+  .id-custom-box{display:none;margin-top:12px;flex-direction:column;gap:10px;}
+  .id-custom-box.open{display:flex;}
+  .id-custom-box input{padding:13px 15px;border:1.5px solid var(--line);border-radius:13px;font-family:inherit;font-size:15px;background:rgba(255,255,255,.95);color:var(--ink);}
+  .id-custom-box input:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:var(--accent);}
+  .id-loading{text-align:center;padding:34px 10px;}
+  .id-load-anim{width:76px;height:76px;margin:0 auto 20px;border-radius:50%;border:4px solid rgba(95,168,232,.18);border-top-color:var(--accent);animation:spin 1s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .id-load-text{font-size:17px;font-weight:800;}
+  .id-load-sub{font-size:13px;color:var(--ink-soft);margin-top:6px;}
+
   @media (max-width:480px){.card{padding:22px 18px;}.hero h1{font-size:27px;}.result-hero h2{font-size:26px;}.wc-icon{width:78px;height:78px;}}
 </style>
 </head>
@@ -174,6 +198,36 @@
       <p class="foot-note">情绪气象台 · 仅供自我探索与娱乐</p>
     </section>
 
+    <!-- ===== 视图：身份选择 ===== -->
+    <section class="view" id="view-identity">
+      <div class="card">
+        <div id="id-picker">
+          <div class="id-head">
+            <h2 class="id-title">先选你的身份</h2>
+            <p class="id-sub">题目会按你的生活场景量身定制</p>
+          </div>
+          <div class="id-search">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg>
+            <input id="id-search-input" type="text" placeholder="搜索身份，如：程序员" autocomplete="off">
+          </div>
+          <div class="id-grid" id="id-grid"></div>
+          <div class="id-custom">
+            <button class="id-custom-toggle" id="id-custom-toggle" type="button">没找到？自定义身份</button>
+            <div class="id-custom-box" id="id-custom-box">
+              <input id="id-custom-input" type="text" placeholder="输入你的身份，如：宠物美容师" maxlength="20" autocomplete="off">
+              <button class="btn" id="id-custom-ok" type="button">就用这个身份</button>
+            </div>
+          </div>
+        </div>
+        <div class="id-loading" id="id-loading" hidden>
+          <div class="id-load-anim" id="id-load-anim"></div>
+          <p class="id-load-text" id="id-load-text">正在观测天空…</p>
+          <p class="id-load-sub">正在为你定制题目，稍等几秒</p>
+        </div>
+      </div>
+      <p class="foot-note">凭直觉选择，答案没有对错</p>
+    </section>
+
     <!-- ===== 视图：答题页 ===== -->
     <section class="view" id="view-quiz">
       <div class="card">
@@ -199,6 +253,7 @@
           <h2>你的心情天气</h2>
         </div>
         <div class="weather-card" id="weather-card">
+          <div class="wc-id" id="wc-id"></div>
           <div class="wc-icon" id="wc-icon"></div>
           <div class="wc-temp" id="wc-temp"></div>
           <div class="wc-type" id="wc-type"></div>
@@ -344,8 +399,8 @@
   };
 
   /* ===== 状态与路由 ===== */
-  var state={route:'intro',answers:[],current:0};
-  var views={intro:document.getElementById('view-intro'),quiz:document.getElementById('view-quiz'),result:document.getElementById('view-result')};
+  var state={route:'intro',answers:[],current:0,questions:QUESTIONS,identity:''};
+  var views={intro:document.getElementById('view-intro'),identity:document.getElementById('view-identity'),quiz:document.getElementById('view-quiz'),result:document.getElementById('view-result')};
   function go(r){
     Object.keys(views).forEach(function(k){views[k].classList.toggle('active',k===r);});
     state.route=r;window.scrollTo(0,0);
@@ -361,16 +416,61 @@
     btnEnter.disabled=true;btnEnter.textContent='校验中…';
     verifyKey(k).then(function(res){
       btnEnter.disabled=false;btnEnter.textContent='开始';
-      if(res.ok){startQuiz();}else{showKeyErr(res.msg||'密钥无效');}
+      if(res.ok){openIdentity();}else{showKeyErr(res.msg||'密钥无效');}
     });
   });
   function showKeyErr(m){keyErr.textContent=m;keyErr.style.display='block';}
 
+  /* ===== 身份选择（动态出题） ===== */
+  var PRESET_IDS=['宝妈','程序员','公务员','学生','教师','医护','销售','设计师','自由职业','打工人','会计','律师','客服','创业者','外卖骑手','护士','银行职员','HR','运营','退休人员'];
+  var idGrid=document.getElementById('id-grid'),idSearch=document.getElementById('id-search-input');
+  var idPicker=document.getElementById('id-picker'),idLoading=document.getElementById('id-loading');
+  var idCustomBox=document.getElementById('id-custom-box'),idCustomInput=document.getElementById('id-custom-input');
+
+  function openIdentity(){
+    idPicker.style.display='block';idLoading.hidden=true;
+    idCustomBox.classList.remove('open');idSearch.value='';idCustomInput.value='';
+    renderIdGrid('');go('identity');
+  }
+  function renderIdGrid(kw){
+    idGrid.innerHTML='';
+    var k=(kw||'').trim();
+    var list=PRESET_IDS.filter(function(n){return !k||n.indexOf(k)>=0;});
+    list.forEach(function(n){
+      var b=document.createElement('button');b.type='button';b.className='id-chip';b.textContent=n;
+      b.addEventListener('click',function(){selectIdentity(n);});
+      idGrid.appendChild(b);
+    });
+    if(!list.length){var e=document.createElement('div');e.className='id-empty';e.textContent='没找到这个身份，点下方「自定义身份」';idGrid.appendChild(e);}
+  }
+  idSearch.addEventListener('input',function(){renderIdGrid(idSearch.value);});
+  document.getElementById('id-custom-toggle').addEventListener('click',function(){
+    idCustomBox.classList.toggle('open');
+    if(idCustomBox.classList.contains('open'))idCustomInput.focus();
+  });
+  document.getElementById('id-custom-ok').addEventListener('click',function(){
+    var v=idCustomInput.value.trim();if(!v){idCustomInput.focus();return;}selectIdentity(v);
+  });
+  idCustomInput.addEventListener('keydown',function(e){if(e.key==='Enter'){document.getElementById('id-custom-ok').click();}});
+
+  function selectIdentity(label){
+    idPicker.style.display='none';idLoading.hidden=false;
+    document.getElementById('id-load-text').textContent='正在观测「'+label+'」的天空…';
+    fetch(SUPABASE_URL+'/functions/v1/get-questions',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','apikey':SUPABASE_ANON,'Authorization':'Bearer '+SUPABASE_ANON},
+      body:JSON.stringify({identity:label})
+    }).then(function(r){return r.json();}).then(function(d){
+      if(d&&d.ok&&d.questions){state.identity=d.identity_label||label;state.questions=d.questions;startQuiz();}
+      else{openIdentity();toast('出题失败，请重试');}
+    }).catch(function(){openIdentity();toast('网络异常，请重试');});
+  }
+
   /* ===== 答题 ===== */
   function startQuiz(){state.answers=[];state.current=0;go('quiz');renderQuestion();}
   function renderQuestion(){
-    var q=QUESTIONS[state.current];
-    document.getElementById('qnum').textContent='第 '+(state.current+1)+' 题 · 共 '+QUESTIONS.length+' 题';
+    var q=state.questions[state.current];
+    document.getElementById('qnum').textContent='第 '+(state.current+1)+' 题 · 共 '+state.questions.length+' 题';
     document.getElementById('q-badge').textContent=q.badge;
     document.getElementById('q-title').textContent=q.title;
     document.getElementById('progress').style.width=(state.current/QUESTIONS.length*100)+'%';
@@ -389,7 +489,7 @@
   }
   function choose(idx){
     state.answers[state.current]=idx;
-    if(state.current<QUESTIONS.length-1){state.current++;renderQuestion();}else{showResult();}
+    if(state.current<state.questions.length-1){state.current++;renderQuestion();}else{showResult();}
   }
   document.getElementById('btn-back').addEventListener('click',function(){
     if(state.current>0){state.current--;renderQuestion();}else{go('intro');}
@@ -399,7 +499,7 @@
   function showResult(){
     var tally={sun:0,sky:0,mist:0,rain:0,storm:0,rainbow:0,snow:0};
     state.answers.forEach(function(ai,qi){
-      var opt=QUESTIONS[qi].options[ai];if(!opt||!opt.w)return;
+      var opt=state.questions[qi].options[ai];if(!opt||!opt.w)return;
       Object.keys(opt.w).forEach(function(k){tally[k]+=opt.w[k];});
     });
     var topKey=Object.keys(tally).reduce(function(a,b){return tally[b]>tally[a]?b:a;},'sun');
@@ -408,6 +508,7 @@
     document.getElementById('wc-icon').innerHTML=svg(w.icon);
     document.getElementById('wc-temp').textContent=w.temp;
     document.getElementById('wc-type').textContent=w.type;
+    document.getElementById('wc-id').textContent=state.identity?('身份 · '+state.identity):'';
     document.getElementById('wc-desc').textContent=w.desc;
     document.getElementById('wc-line').textContent=w.line;
     document.getElementById('wc-pop').textContent=w.pop;
@@ -419,7 +520,7 @@
     w.tags.forEach(function(t){var s=document.createElement('span');s.textContent=t;tags.appendChild(s);});
     document.getElementById('result-note').textContent='天气卡已生成，可保存分享，也可邀请朋友测 TA 的天气。';
     window.__moodShare=w.share;
-    window.__inviteText='我测出了「'+w.type+'」，你是什么天气？8题2分钟，来测你的心情天气 👉 '+INVITE_URL;
+    window.__inviteText=(state.identity?'作为'+state.identity+'，我':'我')+'测出了「'+w.type+'」，你是什么天气？8题2分钟，来测你的心情天气 👉 '+INVITE_URL;
     go('result');
     var fill=document.getElementById('pbar-fill');fill.style.width='0%';
     setTimeout(function(){fill.style.width='100%';},100);
@@ -486,7 +587,8 @@
       ctx.fillStyle=inkSoft;ctx.font='600 26px sans-serif';ctx.fillText('我在情绪气象台测出了',300,96);
       if(img){ctx.drawImage(img,235,128,130,130);}
       ctx.fillStyle=ink;ctx.font='800 52px sans-serif';ctx.fillText(w.type,300,330);
-      ctx.fillStyle=inkSoft;ctx.font='600 28px sans-serif';ctx.fillText(w.temp+' · 心情指数',300,392);
+      ctx.fillStyle=inkSoft;ctx.font='600 28px sans-serif';
+      ctx.fillText(state.identity?(state.identity+' 的天空'):(w.temp+' · 心情指数'),300,392);
       ctx.strokeStyle=dark?'rgba(31,58,95,.18)':'rgba(255,255,255,.4)';ctx.lineWidth=2;
       ctx.beginPath();ctx.moveTo(180,446);ctx.lineTo(420,446);ctx.stroke();
       ctx.fillStyle=ink;ctx.font='800 46px sans-serif';ctx.fillText('你，是什么天气？',300,520);
