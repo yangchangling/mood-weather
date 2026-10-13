@@ -178,7 +178,7 @@
 </style>
 </head>
 <body>
-  <div id="verTag" style="position:fixed;bottom:4px;right:6px;font-size:10px;color:rgba(20,40,70,.30);z-index:9999;pointer-events:none;background:rgba(255,255,255,.7);padding:1px 6px;border-radius:6px;">v-ai-1013-F</div>
+  <div id="verTag" style="position:fixed;bottom:4px;right:6px;font-size:10px;color:rgba(20,40,70,.30);z-index:9999;pointer-events:none;background:rgba(255,255,255,.7);padding:1px 6px;border-radius:6px;">v-ai-1013-G</div>
   <div class="bg" aria-hidden="true">
     <div class="glow g1"></div><div class="glow g2"></div><div class="glow g3"></div>
     <div class="cloud-bg"><div class="cb c1"></div><div class="cb c2"></div><div class="cb c3"></div><div class="cb c4"></div></div>
@@ -329,6 +329,7 @@
             <span class="invite-sub">专属邀请海报已生成；好友完成测评，你返 <b>1 元</b>（下次下单抵扣）</span>
           </div>
           <canvas id="invite-canvas" class="invite-canvas" width="600" height="900" aria-label="专属邀请海报"></canvas>
+          <button class="btn ghost btn-copy-url" id="btn-copy-url">复制测评网址 · 发朋友圈</button>
           <div class="invite-actions">
             <button class="btn" id="btn-save-invite">保存邀请海报</button>
             <button class="btn ghost" id="btn-copy-invite">复制邀请文案</button>
@@ -949,6 +950,9 @@
   document.getElementById('btn-copy-invite').addEventListener('click',function(){
     copyText(window.__inviteText||'','邀请文案已复制');
   });
+  document.getElementById('btn-copy-url').addEventListener('click',function(){
+    copyText(inviteUrl(),'测评网址已复制，去发朋友圈吧');
+  });
   document.getElementById('btn-save-invite').addEventListener('click',function(){
     var cv=document.getElementById('invite-canvas');
     if(!cv||!cv.getContext)return;
@@ -1419,9 +1423,52 @@
     var prev=document.createElement('button');prev.type='button';prev.textContent='‹ 上一页';
     var next=document.createElement('button');next.type='button';next.textContent='下一页 ›';
     var save=document.createElement('a');save.style.cssText='flex:1;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#5FA8E8,#3F83D8);color:#fff;border-radius:11px;height:44px;font-size:15px;font-weight:700;text-decoration:none;cursor:pointer;';
+    var ansBtn=document.createElement('button');ansBtn.type='button';ansBtn.textContent='我的作答';
     var close=document.createElement('button');close.type='button';close.textContent='关闭';
     [prev,next,close].forEach(function(b){b.style.cssText='border:1.5px solid #D9E2EE;background:#fff;color:#1F3A5F;border-radius:11px;height:44px;font-size:14px;font-weight:700;cursor:pointer;padding:0 12px;';});
+    ansBtn.style.cssText=prev.style.cssText+'background:#F0F6FF;border-color:#BBD6F2;color:#2C6BA0;';
     var idx=0;
+    // 答题记录视图：列出 8 题全部选项，所选选项高亮
+    var ansWrap=document.createElement('div');
+    ansWrap.style.cssText='display:none;';
+    var ansBox=document.createElement('div');
+    ansBox.style.cssText='font-size:14px;line-height:1.6;';
+    ansWrap.appendChild(ansBox);
+    var ansRow=document.createElement('div');
+    ansRow.style.cssText='display:flex;gap:8px;margin-bottom:10px;display:none;';
+    var backBtn=document.createElement('button');backBtn.type='button';backBtn.textContent='‹ 返回报告';
+    backBtn.style.cssText='flex:1;border:1.5px solid #D9E2EE;background:#fff;color:#1F3A5F;border-radius:11px;height:44px;font-size:14px;font-weight:700;cursor:pointer;';
+    ansRow.appendChild(backBtn);
+    function buildAnswers(){
+      var qs=window.__questions&&window.__questions.length?window.__questions:QUESTIONS;
+      var ans=window.__answers&&window.__answers.length?window.__answers:(state.answers||[]);
+      var h='';
+      for(var i=0;i<qs.length;i++){
+        var q=qs[i],ai=ans[i];
+        var opts=Array.isArray(q.options)?q.options:[];
+        h+='<div style="margin-bottom:10px;padding:10px 12px;background:#F4F8FD;border-radius:12px;">';
+        h+='<div style="font-weight:800;color:#1F3A5F;font-size:14px;margin-bottom:4px;">'+(i+1)+'. '+(q.badge?('['+q.badge+'] '):'')+(q.title||'')+'</div>';
+        opts.forEach(function(o,k){
+          var text=(o&&typeof o==='object'&&typeof o.text!=='undefined')?o.text:o;
+          var sel=(typeof ai==='number'&&k===ai);
+          h+='<div style="margin-top:5px;padding:6px 10px;border-radius:8px;font-size:13px;color:#40536E;border:1.5px solid '+(sel?'#3F83D8':'#E2E9F2')+';background:'+(sel?'#E8F1FD':'#FFFFFF')+';">'+(sel?'<b style="color:#2C6BA0;">✓ </b>':'')+(text||'')+'</div>';
+        });
+        h+='</div>';
+      }
+      return h;
+    }
+    function showAns(){
+      title.textContent='我的答题记录 · 共 '+(window.__questions||QUESTIONS).length+' 题';
+      ansBox.innerHTML=buildAnswers();
+      img.style.display='none';pg.style.display='none';hint.style.display='none';row.style.display='none';
+      ansWrap.style.display='block';ansRow.style.display='flex';
+    }
+    function showReport(){
+      title.textContent='完整情绪报告 · 共 '+pages.length+' 页';
+      img.style.display='block';pg.style.display='block';hint.style.display='block';row.style.display='flex';
+      ansWrap.style.display='none';ansRow.style.display='none';
+      show();
+    }
     function show(){
       var p=pages[idx];
       img.src=p.dataUrl;img.alt=p.label;
@@ -1430,11 +1477,16 @@
       prev.style.visibility=idx===0?'hidden':'visible';
       next.style.visibility=idx===pages.length-1?'hidden':'visible';
     }
+    ansBtn.addEventListener('click',showAns);
+    backBtn.addEventListener('click',showReport);
     prev.addEventListener('click',function(){if(idx>0){idx--;show();}});
     next.addEventListener('click',function(){if(idx<pages.length-1){idx++;show();}});
     close.addEventListener('click',function(){ov.remove();});
     row.appendChild(prev);row.appendChild(next);row.appendChild(save);
-    box.appendChild(title);box.appendChild(img);box.appendChild(pg);box.appendChild(hint);box.appendChild(row);box.appendChild(close);
+    var ctrlRow=document.createElement('div');ctrlRow.style.cssText='display:flex;gap:8px;margin-bottom:10px;';
+    ctrlRow.appendChild(ansBtn);ctrlRow.appendChild(close);
+    box.appendChild(title);box.appendChild(img);box.appendChild(pg);box.appendChild(hint);box.appendChild(row);
+    box.appendChild(ansWrap);box.appendChild(ansRow);box.appendChild(ctrlRow);
     ov.appendChild(box);
     ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});
     document.body.appendChild(ov);
