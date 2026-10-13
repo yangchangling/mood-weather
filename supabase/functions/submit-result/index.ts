@@ -104,7 +104,7 @@ Deno.serve(async (req) => {
       return respond(origin, 400, { ok: false, code: "bad_body" });
     }
     if (!ticket) return respond(origin, 400, { ok: false, code: "no_ticket" });
-    if (!identity || temp < -30 || temp > 60) return respond(origin, 400, { ok: false, code: "bad_data" });
+    if (!identity || !isFinite(temp) || temp < -30 || temp > 60) return respond(origin, 400, { ok: false, code: "bad_data" });
     if (VALID_RESULTS.indexOf(resultKey) < 0) resultKey = "sky";
 
     // ===== ① 票据鉴权 + 设备绑定 =====
