@@ -850,11 +850,12 @@
     window.__moodShare=w.share;
     window.__weatherMeta={topKey:topKey,w:w,identity:identity};
     window.__inviteText=(identity?'作为'+identity+'，我':'我')+'测出了「'+w.type+'」，你是什么天气？8题2分钟，来测你的心情天气 👉 '+inviteUrl();
-    // 二次进入（历史结果恢复）：隐藏"再测一次"与"保存测评记录"（恢复视图无题目答案），保留重新下载
+    // 二次进入（历史结果恢复）：隐藏"再测一次"；"保存测评记录"仅在有作答快照时可用
     var again=document.getElementById('btn-again');
     if(again)again.style.display=isReentry?'none':'';
     var recBtn=document.getElementById('btn-record');
-    if(recBtn)recBtn.style.display=isReentry?'none':'';
+    var hasSnap=window.__answers&&window.__answers.length&&window.__questions&&window.__questions.length;
+    if(recBtn)recBtn.style.display=((isReentry&&!hasSnap)?'none':'');
     go('result');
     var fill=document.getElementById('pbar-fill');fill.style.width='0%';
     setTimeout(function(){fill.style.width='100%';},100);
@@ -871,6 +872,9 @@
     document.getElementById('result-note').textContent='天气卡已生成，可保存分享，也可邀请朋友测 TA 的天气。';
     state.reentry=false;
     updateRetakeUI();
+    // 作答快照（题目+答案文本）供个性化深度报告与测评记录使用
+    window.__questions=state.questions.slice(0,8).map(function(q){return {title:q.title,options:q.options.map(function(o){return o.text;})};});
+    window.__answers=(state.answers||[]).slice(0,8);
     renderResultUI(w, topKey, state.identity, false);
     submitResult(state.identity,parseInt(w.temp,10),topKey);
   }
@@ -898,9 +902,12 @@
     fetch(SUPABASE_URL+'/functions/v1/submit-result',{
       method:'POST',
       headers:{'Content-Type':'application/json','apikey':SUPABASE_ANON,'Authorization':'Bearer '+SUPABASE_ANON},
-      body:JSON.stringify({identity:identity,temp:temp,result_key:resultKey,inv:readInvCode(),ticket:getTicket(),device_id:DEVICE_ID})
+      body:JSON.stringify({identity:identity,temp:temp,result_key:resultKey,inv:readInvCode(),ticket:getTicket(),device_id:DEVICE_ID,
+        answers:(state.answers||[]).slice(0,8),
+        questions:state.questions.slice(0,8).map(function(q){return {title:q.title,options:q.options.map(function(o){return o.text;})};})})
     }).then(function(r){return r.json();}).then(function(d){
       if(d&&d.ok){
+        if(d.report)window.__report=d.report;
         if(d.result_code)showResultCodeCard(d.result_code);
         if(d.rewarded)toast('好友已完成测评，你获得 1 元返现（下次下单抵扣）');
         var sim=d.similar;
@@ -1147,6 +1154,10 @@
     var topKey=(wj.topKey&&WEATHERS[wj.topKey])?wj.topKey:((res.result_label&&WEATHERS[res.result_label])?res.result_label:'sky');
     var w=WEATHERS[topKey];
     var identity=String(wj.identity||res.identity||'').slice(0,20);
+    // 从后端快照恢复：个性化深度报告 + 题目答案（供二次进入渲染报告与测评记录）
+    if(wj.report)window.__report=wj.report;
+    if(Array.isArray(wj.questions))window.__questions=wj.questions;
+    if(Array.isArray(wj.answers))window.__answers=wj.answers;
     state.reentry=true;
     showResultCodeCard(code);
     document.getElementById('result-note').textContent='已从历史结果恢复，可重新下载你的天气卡、完整报告与查询码。';
@@ -1170,36 +1181,92 @@
       blind:'你习惯用阳光盖住自己的阴天。别人以为你永远开心，其实你会累、会委屈，只是不敢停下来让乌云露出来——因为你怕「扫兴」。',
       role:'你是人群里的「情绪电源」——聚会、团队低谷时大家会下意识看向你，因为有你，氛围就不会塌。',
       stress:'当你的「光」也被耗尽时，你会突然很安静，甚至想躲开所有人。那不是你变了，是你的太阳也需要云来遮一遮、歇一歇。',
+      energy:'你的能量来自「被需要」——当你点亮别人、被人依赖时，你会自然发光；独处太久反而容易熄火。',
+      energyScene:'团队协作、聚会氛围、被感谢与被认可的时刻，是你状态最好的高光区。',
+      switchOn:'朋友的邀约、一句真诚的感谢、一件能立刻看到成果的小事',
+      switchOff:'长时间独处、被否定、付出不被看见、无意义的重复',
+      charge:'晒晒太阳、出门走走、和有能量的人吃顿饭——你靠「联结」回血',
+      others3:['别总问他「累不累」，他总说没事，直接带他去吃顿好的','他给你捧场时是真的在为你高兴，别只当客气','他难得说「我不想」时，认真听——那是他真的需要休息'],
+      thisWeek:'这周，试着把你照亮别人的那份光，分一成照回自己：给自己留一顿只属于自己的晚餐。',
+      quote:'你不是太阳，是一束会被记住很久的光——记得也为自己亮一次。',
       actions:['每天留 20 分钟「不发光」时间：不回应任何人，只做让自己松弛的小事','允许自己说一次「今天我不太开心」，不用解释、不用转场','把最擅长的照亮别人，分 1 成给自己——先充电再发光','低落时先做一件 5 分钟能完成的小事，用成就感把乌云顶开','睡前记下 1 件「为别人做的事」和 1 件「为自己做的事」，找回平衡']},
     sky:{talent:'把「清醒通透」翻译成天赋：你有超强的情绪锚定力与全局判断力，风浪再大也能把自己稳住，是能扛事、也能兜底的人——这种稳定本身就是稀缺的「定海神针」。',
       blind:'你太擅长「稳住」，反而把真实情绪关在了蓝天背后。别人以为你没事，其实你也翻涌——只是把「不说」当成了体面，久了会憋成内伤。',
       role:'你是团队和朋友里的「定海神针」——越是混乱，大家越愿意听你一句「没事，慢慢来」。',
       stress:'当所有人都依赖你时，你最容易硬撑到情绪「过载」，然后突然沉默或冷淡。那不是冷漠，是你撑得太久，需要被人看见一次。',
+      energy:'你的能量来自「掌控感」——把事情想明白、把局面稳住时你最充实；模糊和失控最让你内耗。',
+      energyScene:'独立处理难题、给出清晰判断、被委以重任的时刻，是你最稳的高光区。',
+      switchOn:'逻辑清晰的事、被信任放手去办、安静专注的工作',
+      switchOff:'毫无章法的混乱、被迫站队、情绪化的拉扯',
+      charge:'一个人散步、整理思路、读点东西——你靠「想明白」回血',
+      others3:['他话不多，但说了就作数，别逼他反复表态','他习惯先稳住局面，不是不在乎，是想替你扛住','他偶尔冷淡是在给自己充电，不是生你的气'],
+      thisWeek:'这周，试着把一个藏了很久的情绪，主动说给一个信得过的人听。',
+      quote:'你总说没事，是怕别人担心；其实你稳稳接住所有人的时候，也该有人接住你一次。',
       actions:['每周至少一次，主动告诉一个人「我现在也有点烦/累」','情绪翻涌时，先深呼吸 3 次再决定要不要「稳住」','把「我可以自己搞定」改成「我需要你帮我……」——求助不是软弱','睡前写下当天一件没说出口的情绪，试着说出来或写下来','允许自己在信任的人面前「崩」一次，你会发现天不会塌']},
     mist:{talent:'把「温柔高共情」翻译成天赋：你有近乎天赋的情绪雷达，能精准读懂别人的言外之意和藏起来的需要，是大家愿意托付情绪的人——这份「被信任」极其珍贵。',
       blind:'你太会照顾别人，却常常忘了自己也在等一句关心。你把「不让别人为难」当成习惯，久了，别人真的以为你不需要被照顾。',
       role:'你是人群里的「情绪缓冲带」——大家有压力会找你倾诉，因为你总是温柔接住、从不评判。',
       stress:'当你的付出没被看见、或积压太久，你会突然想「消失」一下，不想再听别人的心事。那不是变冷漠，是你的情绪也需要有人接一次。',
+      energy:'你的能量来自「被懂得」——当你被温柔接住、被真诚关心时最安心；单方面付出让你悄悄透支。',
+      energyScene:'一对一深聊、被问「你还好吗」、被需要也被回应的时刻，是你最暖的高光区。',
+      switchOn:'温柔的问候、被倾听的十分钟、被记挂的小细节',
+      switchOff:'持续的付出不被回应、被当透明人、情绪被敷衍',
+      charge:'听歌、写日记、和懂你的人慢慢聊——你靠「被接住」回血',
+      others3:['他总照顾别人，记得偶尔主动问他一句「你呢」','他给的温柔很细，别因为他安静就忽略他','他需要一点独处缓冲，不是不想理你'],
+      thisWeek:'这周，把「你还好吗」先问给自己一次，再决定要不要继续照顾别人。',
+      quote:'你温柔地接住了所有人，这次，请允许别人也接住你。',
       actions:['今天把「你还好吗」这句关心，先问给自己一次','学会一句「我也需要人陪」——对朋友是信任，不是负担','每天记一次「我为自己做的事」，别只记别人','压力大时先照顾自己的感受，再决定要不要继续倾听','允许自己偶尔「不给回应」——温和也要有边界，能量不是无限的']},
     rain:{talent:'把「敏感想太多」翻译成天赋：你能读到别人说不出口的情绪，能察觉空气里最细微的变化——这不是内耗，是别人求之不得的洞察力与共情力，你是「能读空气的人」。',
       blind:'你把「想太多」当成了缺点，其实它让你更懂珍惜、更早察觉风险。真正要小心的，是你太在意别人、反而把自己累到淋湿。',
       role:'你是人群里的「读心者」——别人没开口，你已经懂了他的难过，常被当成最贴心的倾诉对象。',
       stress:'当你把太多人的情绪装进心里，会突然觉得自己「撑不住」，只想一个人安静躲雨。那不是脆弱，是你的心雨衣也湿透了，需要晾一晾。',
+      energy:'你的能量来自「读懂与被读懂」——当你察觉出别人没说出口的在意、又被别人看穿心事时，你最有安全感。',
+      energyScene:'被点到没说出口的情绪、深度的共情时刻，是你最通透的高光区。',
+      switchOn:'被理解的一句话、安静的陪伴、真诚的细节',
+      switchOff:'被敷衍、被当「想太多」、情绪积压没人接',
+      charge:'写下来、听慢歌、和懂你的人待一会儿——你靠「表达出来」回血',
+      others3:['他想得多，不是矫情，是他真的在乎','他沉默时，陪着他比劝他「别想太多」更有用','他给你的好都很细，别把他的敏感当负担'],
+      thisWeek:'这周，把一件压了很久的心事，写下来，然后试着说出口一次。',
+      quote:'敏感不是脆弱，是你比别人先一步读懂了世界的温柔。',
       actions:['把「想太多」写下来——写下的那一刻，它就轻了一半','每天给情绪设一个「暂停键」：到点就告诉自己，今天不想了','学着分清「别人的情绪」和「自己的情绪」，不为别人的晴天买单','想太多时去动一动（散步/拉伸），让念头跟着身体停下来','把读懂别人的那份心，也读一次自己：你今天到底怎么了？']},
     storm:{talent:'把「直接、有冲劲」翻译成天赋：你有顶级的行动力和爆发力，敢想敢说、说干就干，情绪来得快、过得更快——你的雷声是能给众人壮胆的鼓点，也是推进事情的引擎。',
       blind:'你的直接是优点，但「太快」有时会吓到慢热的人、错过更深的连接。真正成熟的勇敢，是冲劲之上再加一点「软着陆」。',
       role:'你是人群里的「发动机」和「鼓点」——聚会你带节奏，项目你推进度，大家跟着你就有劲儿。',
       stress:'你情绪「打雷」时，容易话说得重、动作很急，过后又后悔。那不是你坏，是你需要把雷声调到「会伤人」之前，先给自己一个缓冲。',
+      energy:'你的能量来自「冲出去」——当你有目标、有行动、被点燃时最带劲；憋着不动才最难受。',
+      energyScene:'推进一件大事、带节奏让氛围燃起来、说到做到的时刻，是你最高光区。',
+      switchOn:'有挑战的目标、一群同频的人、说干就干的现场',
+      switchOff:'被拖沓、被否定打击、被要求「别太急」',
+      charge:'运动出汗、大声吐槽完、马上动手做点实事——你靠「释放」回血',
+      others3:['他急是急着把事办好，不是冲你发火','他说得冲，过后会后悔，给他个台阶就没事','别把他当「永远情绪稳定」，他也有需要被接住的时候'],
+      thisWeek:'这周，情绪上头时先停 10 秒再开口，给自己一个「雷声缓冲」。',
+      quote:'你的热烈是鼓点，能壮很多人的胆；记得雷声过后，也轻轻收个尾。',
       actions:['情绪上头时，先停 10 秒再开口——给雷声一个缓冲','把「我要」改成「我们可以先试一步」：急，但不伤人','每次发完「雷」，主动收个尾：「我刚才有点急，不是针对你」','把高涨的能量，固定投给一件具体的小目标，别让它空转','睡前复盘：今天哪些话说得冲，明天换种说法会不会更好']},
     rainbow:{talent:'把「脑洞大、爱热闹」翻译成天赋：你有罕见的创造力和情绪感染力，能在平淡里发现惊喜，把普通日子过成彩色——你是那种自带光源、让人想靠近的人。',
       blind:'你习惯把最好玩的一面给人看，却把自己安静敏感的那一面藏得很深。热闹是你的外壳，不是全部——你也需要有人看穿你「彩色」底下也有云。',
       role:'你是人群里的「快乐制造机」——朋友圈的热闹、聚会的氛围，很多都靠你点亮，你是大家心情的「调色盘」。',
       stress:'当你的「彩色」也没了，你会突然失去表达欲、安静下来，甚至怀疑自己「是不是没意思了」。那不是你暗淡，是你也需要别人来给你上点色。',
+      energy:'你的能量来自「创造与分享」——当你把灵感变成作品、把快乐带给别人时最发光；被迫无聊最难受。',
+      energyScene:'头脑风暴、把点子落地、点亮气氛的时刻，是你最高光区。',
+      switchOn:'新点子、热闹的场子、有人接你的梗和脑洞',
+      switchOff:'一成不变的重复、被打压的创造力、独自闷着',
+      charge:'做点小手工、记灵感、和有想象力的人聊——你靠「创造」回血',
+      others3:['他脑洞大，接住他的梗，他就把你当知己','他热闹，但也需要有人看穿他彩色底下也有云','别要求他「正常一点」，他的五彩正是珍贵处'],
+      thisWeek:'这周，把脑子里最亮的一个灵感，真正动手做出来一点点。',
+      quote:'你把生活过成了彩色，也别忘了，彩色底下也有云——它们都值得被看见。',
       actions:['把脑子里最亮的灵感，挑 1 个真正动手做出来，别让它只停在天上','允许自己有一天「不有趣」——你的价值不是靠逗笑别人证明的','热闹过后留 10 分钟给自己静静，别让透支变成习惯','把创造力也用来给自己设计一件「舒服小事」','低落时翻一翻你拍过/收藏的彩色瞬间，提醒自己你自带光源']},
     snow:{talent:'把「话少、清冷」翻译成天赋：你有极强的情感自持力和判断力，不轻易被带节奏，情绪稳定、边界清晰——你的安静不是疏离，是一种让人安心的「有分寸的温柔」。',
       blind:'你习惯「自己消化」，把「不说」当独立，其实久了，真正懂你的人会心疼你一个人扛。清冷是你的铠甲，别让它隔开你该靠近的人。',
       role:'你是人群里的「冷静坐标」——大家都浮躁时，你是那个能一针见血、稳住局面的人，话少但句句在点子上。',
       stress:'当你压抑太久，会突然「冷到结冰」：关上门、不说话、谁都叫不动。那不是绝情，是你需要被人在雪地里找到一次、拉一把。',
+      energy:'你的能量来自「清醒与边界」——当你有自己清晰的节奏、不被裹挟时最安定；被打扰过度才最累。',
+      energyScene:'独处整理思路、给出准确判断、安静做成事的时刻，是你最稳的高光区。',
+      switchOn:'一个人、清晰的边界、被尊重的节奏',
+      switchOff:'无休止的社交消耗、被打断、被迫热闹',
+      charge:'独处、安静走路、写点什么——你靠「回到自己」回血',
+      others3:['他话少不是冷漠，是他把话说得认真','给他空间，他需要时间才慢慢打开自己','他拒绝热闹时别强拉，尊重他的节奏'],
+      thisWeek:'这周，试着在重要的人面前，多说一句心里话。',
+      quote:'你的安静是有分寸的温柔，别让它变成隔开人的城墙。',
       actions:['每周至少一次，在重要的人面前多说一句心里话，别让沉默成习惯','情绪积压时先写下来再决定要不要说——写作是你的出口','把「我不需要」偶尔改成「其实我想要……」，独立也可以不逞强','试着主动关心一个人一次，你会发现打开一点也很安全','睡前给自己一句肯定：你认真、可靠、值得被好好对待']}
   };
   // ===== 完整情绪报告（分页多张：天气 / 天赋·盲区 / 角色·压力 / 行动·查询码）=====
@@ -1220,6 +1287,9 @@
   function reportBody(ctx,y,text,maxLines){ctx.fillStyle='#5A6B82';ctx.font='500 18px sans-serif';var used=wrapText(ctx,text,60,y,680,30,maxLines||6);return y+used*30+16;}
   function drawReport(){
     var meta=window.__weatherMeta||{},key=meta.topKey||'sky',w=meta.w||{},identity=meta.identity||'',deep=REPORT_DEEP[key]||{};
+    // AI 深度报告优先：基于真实作答生成，有分析、有结论、每份不同
+    var rep=window.__report;
+    if(rep&&rep.summary&&Array.isArray(rep.sections)&&rep.sections.length){drawAIReport(rep,w,key,identity);return;}
     var pages=[];
     // P1 我的情绪天气
     var p1=reportCanvas(1140);var c1=p1.ctx;reportHeader(c1,420,'我的情绪气象报告',identity?('身份 · '+identity):'我的心情天气',key);
@@ -1302,10 +1372,89 @@
     document.body.appendChild(ov);
     show();
   }
+  // AI 个性化深度报告（分页渲染：总览 / 板块 / 盲区 / 行动+本周 / 金句+查询码）
+  function drawAIReport(rep,w,key,identity){
+    var pages=[];
+    function wrapList(ctx,lines,y){
+      ctx.fillStyle='#5A6B82';ctx.font='500 17px sans-serif';
+      lines.forEach(function(t){
+        var used=wrapText(ctx,t,60,y,680,28,5);
+        y+=used*28+10;
+      });
+      return y;
+    }
+    function drawBlock(ctx,sec,y){
+      y=reportSectionTitle(ctx,y,sec.t||'');
+      return wrapList(ctx,sec.c||[],y)+14;
+    }
+    // P1 总览 + 一句话总印象 + 深度概括
+    var p1=reportCanvas(1200);var c1=p1.ctx;reportHeader(c1,420,'我的情绪气象报告',identity?('身份 · '+identity):'我的心情天气',key);
+    c1.fillStyle='#FFFFFF';c1.fillRect(0,420,800,780);
+    var y1=reportSectionTitle(c1,482,'一句话总印象');
+    y1=reportBody(c1,y1,w.desc||'',5);
+    y1=reportSectionTitle(c1,y1,'这段日子里的你（深度概括）');
+    y1=reportBody(c1,y1,rep.summary||'',8);
+    c1.fillStyle='#9AA9BD';c1.font='400 15px sans-serif';c1.fillText('本报告基于你的 8 题作答逐份生成 · 仅供自我探索与娱乐，非专业心理评估',60,y1+14);
+    pages.push({dataUrl:p1.cv.toDataURL('image/png'),label:'我的情绪总览'});
+    // P2~ 板块（每页 2 个板块）
+    var secs=rep.sections||[];
+    for(var i=0;i<secs.length;i+=2){
+      var chunk=secs.slice(i,i+2);
+      var pc=reportCanvas(1260);var cc=pc.ctx;reportHeader(cc,150,'你的情绪深度解读','让这几次选择，回答你真实的自己',key);
+      var yb=210;
+      chunk.forEach(function(sec){yb=drawBlock(cc,sec,yb);});
+      cc.fillStyle='#9AA9BD';cc.font='400 15px sans-serif';cc.fillText('情绪气象台 · 仅供自我探索与娱乐，非专业心理评估',60,1240);
+      pages.push({dataUrl:pc.cv.toDataURL('image/png'),label:'情绪深度解读('+(chunk.map(function(s){return s.t;}).join('·'))+')'});
+    }
+    // 盲区页（一句话点醒，突出）
+    var pb=reportCanvas(1200);var cb=pb.ctx;reportHeader(cb,150,'你还没看见的自己','你的情绪盲区',key);
+    var yb2=reportSectionTitle(cb,210,'· 你常常没察觉的一点');
+    cb.fillStyle='#1F3A5F';cb.font='600 24px sans-serif';
+    var usedb=wrapText(cb,rep.blindspot||'',70,270,660,40,6);
+    yb2=270+usedb*40+30;
+    cb.fillStyle='#9AA9BD';cb.font='400 15px sans-serif';cb.fillText('看见盲区，是变好的第一步 · 仅供自我探索与娱乐',70,yb2+10);
+    pages.push({dataUrl:pb.cv.toDataURL('image/png'),label:'你的情绪盲区'});
+    // 建议 + 本周挑战页
+    var pa=reportCanvas(1300);var ca=pa.ctx;reportHeader(ca,150,'给你的行动建议','今天就能做的 5 件小事',key);
+    var ya=reportSectionTitle(ca,210,'· 5 条个性化建议');
+    ca.fillStyle='#5A6B82';ca.font='500 17px sans-serif';
+    (rep.advice||[]).forEach(function(a,j){ca.fillText((j+1)+'. '+a,60,ya);ya+=32;});ya+=16;
+    ya=reportSectionTitle(ca,ya,'· 本周只做一件事');
+    ya=reportBody(ca,ya,rep.week||'',4);
+    ca.fillStyle='#9AA9BD';ca.font='400 15px sans-serif';ca.fillText('情绪气象台 · 仅供自我探索与娱乐，非专业心理评估',60,1280);
+    pages.push({dataUrl:pa.cv.toDataURL('image/png'),label:'行动建议'});
+    // 金句 + 查询码页
+    var pq=reportCanvas(1200);var cq=pq.ctx;reportHeader(cq,150,'送给此刻的你','把这句话，也送给想懂你的人',key);
+    cq.fillStyle='#24304A';cq.font='700 26px sans-serif';cq.textAlign='center';
+    var usedq=wrapTextCenter(cq,rep.quote||'',400,260,640,44,4);
+    cq.textAlign='left';
+    var yq=260+usedq*44+40;
+    cq.fillStyle='#24304A';cq.font='800 19px sans-serif';cq.fillText('结果查询码',60,yq);yq+=34;
+    cq.fillStyle='#1F3A5F';cq.font='700 26px sans-serif';cq.fillText(window.__resultCode||'',60,yq);yq+=36;
+    cq.fillStyle='#9AA9BD';cq.font='400 15px sans-serif';cq.fillText('保存测评记录可回顾每题作答 · 仅供自我探索与娱乐，非专业心理评估',60,yq);
+    pages.push({dataUrl:pq.cv.toDataURL('image/png'),label:'金句与查询码'});
+    showReportViewer(pages);
+  }
+  // 居中换行（用于金句）
+  function wrapTextCenter(ctx,text,cx,cy,maxW,lineH,maxLines){
+    if(!text)return 0;
+    var lines=[],cur='';
+    for(var i=0;i<text.length;i++){
+      cur+=text[i];
+      if(ctx.measureText(cur).width>maxW){lines.push(cur.slice(0,-1));cur=text[i];}
+    }
+    if(cur)lines.push(cur);
+    lines=lines.slice(0,maxLines||4);
+    ctx.fillStyle='#24304A';ctx.font='700 26px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    lines.forEach(function(l,j){ctx.fillText(l,cx,cy+j*lineH);});
+    ctx.textBaseline='alphabetic';
+    return lines.length;
+  }
   // ===== 保存测评记录（题目+答案回顾长图）=====
   function drawRecord(){
     var meta=window.__weatherMeta||{},w=meta.w||{},identity=meta.identity||'',key=meta.topKey||'sky';
-    var qs=QUESTIONS,ans=state.answers||[];
+    var qs=window.__questions&&window.__questions.length?window.__questions:QUESTIONS;
+    var ans=window.__answers&&window.__answers.length?window.__answers:(state.answers||[]);
     var h=560+qs.length*118;
     var p=reportCanvas(h);var ctx=p.ctx;
     reportHeader(ctx,300,'我的测评记录',identity?('身份 · '+identity):'我的心情天气',key);
@@ -1315,7 +1464,7 @@
     ctx.fillText('最终天气：'+w.type+' · 情绪温度 '+w.temp,60,y);y+=30;
     for(var i=0;i<qs.length;i++){
       var q=qs[i],ai=ans[i];
-      var opt=(typeof ai==='number'&&q.options&&q.options[ai])?q.options[ai].text:'未作答';
+      var opt=(typeof ai==='number'&&q.options&&q.options[ai])?(typeof q.options[ai]==='string'?q.options[ai]:q.options[ai].text):'未作答';
       ctx.fillStyle='#24304A';ctx.font='800 16px sans-serif';
       ctx.fillText((i+1)+'. '+(q.badge?('['+q.badge+'] '):'')+q.title,60,y);y+=24;
       ctx.fillStyle='#3F83D8';ctx.font='600 16px sans-serif';
