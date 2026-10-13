@@ -217,6 +217,7 @@
           <button class="btn" id="btn-enter" style="margin-top:12px;">我同意并开始测试</button>
           <p class="key-hint">点击「我同意并开始测试」即视为同意 <button class="foot-link" id="key-privacy" type="button">《隐私政策》</button>，可点开查看全文；下单后会自动收到密钥，凭它解锁测评。</p>
           <p class="key-err" id="key-err"></p>
+          <p class="reentry-link" style="margin:10px 0 0;text-align:center;"><button class="foot-link" id="btn-reentry" type="button">已有结果？查看我的结果</button></p>
         </div>
       </div>
       <p class="foot-note">情绪气象台 · 仅供自我探索与娱乐，非专业心理评估。你的答案仅在本机用于生成结果；为生成个性化题目，我们会把「身份」发送给第三方 AI（DeepSeek）出题，不用于训练；测评结果（身份、情绪温度、天气）将匿名用于"相似人群匹配"，不对外展示个人明细。测评后可在结果页随时清除数据。 <button class="foot-link" id="btn-privacy" type="button">隐私政策</button></p>
@@ -300,7 +301,17 @@
         </div>
         <div class="result-actions">
           <button class="btn sunny" id="btn-share">保存并分享天气卡</button>
+          <button class="btn" id="btn-report">完整情绪报告</button>
           <button class="btn ghost" id="btn-again">再测一次</button>
+        </div>
+        <div class="result-code-card" id="result-code-card" style="display:none;margin:12px 0 4px;background:#fff;border:1px solid rgba(95,168,232,.45);border-radius:16px;padding:14px 16px;text-align:center;">
+          <div style="font-size:12px;color:var(--ink-soft);letter-spacing:.06em;">我的结果查询码</div>
+          <div id="rc-code" style="font-size:22px;font-weight:800;color:var(--ink);letter-spacing:.14em;margin:6px 0 2px;font-family:ui-monospace,monospace;"></div>
+          <div style="font-size:12px;color:var(--ink-soft);line-height:1.6;">凭此码可随时回来查看 / 下载你的结果，请截图保存</div>
+          <div style="display:flex;gap:10px;margin-top:10px;">
+            <button class="btn ghost" id="btn-copy-rc" type="button" style="flex:1;padding:10px 0;font-size:14px;">复制查询码</button>
+            <button class="btn" id="btn-save-rc" type="button" style="flex:1;padding:10px 0;font-size:14px;">保存查询码卡片</button>
+          </div>
         </div>
         <p class="result-note" id="result-note"></p>
         <div id="similar-box" style="display:none;margin:12px 0 6px;background:linear-gradient(135deg,rgba(95,168,232,.10),rgba(143,208,240,.16));border:1px dashed rgba(95,168,232,.45);border-radius:16px;padding:12px 14px;">
@@ -578,7 +589,7 @@
   };
 
   /* ===== 状态与路由 ===== */
-  var state={route:'intro',answers:[],current:0,questions:QUESTIONS,identity:'',retakes:0,ticket:'',hash:''};
+  var state={route:'intro',answers:[],current:0,questions:QUESTIONS,identity:'',retakes:0,ticket:'',hash:'',reentry:false};
   // 恢复会话票据 + 邀请 hash（页面刷新后仍可继续，无需重新输密钥）
   (function(){try{var t=getTicket();if(t){state.ticket=t;}var h=(function(){try{return sessionStorage.getItem('mw_hash')||'';}catch(e){return '';}})();if(h){state.hash=h;}}catch(e){}})();
   var RETRY_LIMIT=1; // 再测上限：初始 1 次 + 最多再测 1 次
@@ -819,19 +830,13 @@
   });
 
   /* ===== 结果 ===== */
-  function showResult(){
-    var tally={sun:0,sky:0,mist:0,rain:0,storm:0,rainbow:0,snow:0};
-    state.answers.forEach(function(ai,qi){
-      var opt=state.questions[qi].options[ai];if(!opt||!opt.w)return;
-      Object.keys(opt.w).forEach(function(k){tally[k]+=opt.w[k];});
-    });
-    var topKey=Object.keys(tally).reduce(function(a,b){return tally[b]>tally[a]?b:a;},'sun');
-    var w=WEATHERS[topKey];
+  // 渲染结果页（供首次出题与二次进入共用）；identity 为当前/恢复的身份
+  function renderResultUI(w, topKey, identity){
     var card=document.getElementById('weather-card');card.className='weather-card wc '+w.cls;
     document.getElementById('wc-icon').innerHTML=svg(w.icon);
     document.getElementById('wc-temp').textContent=w.temp;
     document.getElementById('wc-type').textContent=w.type;
-    document.getElementById('wc-id').textContent=state.identity?('身份 · '+state.identity):'';
+    document.getElementById('wc-id').textContent=identity?('身份 · '+identity):'';
     document.getElementById('wc-desc').textContent=w.desc;
     document.getElementById('wc-line').textContent=w.line;
     document.getElementById('wc-pop').textContent=w.pop;
@@ -841,16 +846,39 @@
     document.getElementById('pct-val').textContent='TOP '+w.pct+'%';
     var tags=document.getElementById('wc-tags');tags.innerHTML='';
     w.tags.forEach(function(t){var s=document.createElement('span');s.textContent=t;tags.appendChild(s);});
-    document.getElementById('result-note').textContent='天气卡已生成，可保存分享，也可邀请朋友测 TA 的天气。';
-    updateRetakeUI();
     window.__moodShare=w.share;
-    window.__weatherMeta={topKey:topKey,w:w,identity:state.identity};
-    window.__inviteText=(state.identity?'作为'+state.identity+'，我':'我')+'测出了「'+w.type+'」，你是什么天气？8题2分钟，来测你的心情天气 👉 '+inviteUrl();
+    window.__weatherMeta={topKey:topKey,w:w,identity:identity};
+    window.__inviteText=(identity?'作为'+identity+'，我':'我')+'测出了「'+w.type+'」，你是什么天气？8题2分钟，来测你的心情天气 👉 '+inviteUrl();
+    // 二次进入（历史结果恢复）：隐藏"再测一次"，保留重新下载
+    var again=document.getElementById('btn-again');
+    if(again)again.style.display=state.reentry?'none':'';
     go('result');
     var fill=document.getElementById('pbar-fill');fill.style.width='0%';
     setTimeout(function(){fill.style.width='100%';},100);
     drawInvitePoster(topKey,w);
+  }
+  function showResult(){
+    var tally={sun:0,sky:0,mist:0,rain:0,storm:0,rainbow:0,snow:0};
+    state.answers.forEach(function(ai,qi){
+      var opt=state.questions[qi].options[ai];if(!opt||!opt.w)return;
+      Object.keys(opt.w).forEach(function(k){tally[k]+=opt.w[k];});
+    });
+    var topKey=Object.keys(tally).reduce(function(a,b){return tally[b]>tally[a]?b:a;},'sun');
+    var w=WEATHERS[topKey];
+    document.getElementById('result-note').textContent='天气卡已生成，可保存分享，也可邀请朋友测 TA 的天气。';
+    state.reentry=false;
+    updateRetakeUI();
+    renderResultUI(w, topKey, state.identity);
     submitResult(state.identity,parseInt(w.temp,10),topKey);
+  }
+  // 展示结果查询码卡片（首次评测返回或二次进入均调用）
+  function showResultCodeCard(code){
+    if(!code)return;
+    window.__resultCode=code;
+    var card=document.getElementById('result-code-card');
+    if(!card)return;
+    card.style.display='block';
+    var c=document.getElementById('rc-code');if(c)c.textContent=code;
   }
 
   /* ===== 结果落库 + 相似人群 + 邀请返现 ===== */
@@ -870,6 +898,7 @@
       body:JSON.stringify({identity:identity,temp:temp,result_key:resultKey,inv:readInvCode(),ticket:getTicket(),device_id:DEVICE_ID})
     }).then(function(r){return r.json();}).then(function(d){
       if(d&&d.ok){
+        if(d.result_code)showResultCodeCard(d.result_code);
         if(d.rewarded)toast('好友已完成测评，你获得 1 元返现（下次下单抵扣）');
         var sim=d.similar;
         if(sim&&sim.count>0){
@@ -892,6 +921,14 @@
     if(!cv||!cv.getContext)return;
     showImageToSave(cv.toDataURL('image/png'),'情绪气象台-邀请海报.png');
   });
+  var btnReport=document.getElementById('btn-report');
+  if(btnReport)btnReport.addEventListener('click',drawReport);
+  var btnCopyRc=document.getElementById('btn-copy-rc');
+  if(btnCopyRc)btnCopyRc.addEventListener('click',function(){copyText(window.__resultCode||'','结果查询码已复制');});
+  var btnSaveRc=document.getElementById('btn-save-rc');
+  if(btnSaveRc)btnSaveRc.addEventListener('click',drawResultCodeCard);
+  var btnReentry=document.getElementById('btn-reentry');
+  if(btnReentry)btnReentry.addEventListener('click',openReentry);
 
   function copyText(t,msg){
     if(navigator.clipboard){navigator.clipboard.writeText(t).then(function(){toast(msg);}).catch(function(){window.prompt('复制文案：',t);});}
@@ -1058,6 +1095,143 @@
     ov.appendChild(box);
     ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});
     document.body.appendChild(ov);
+  }
+
+  /* ===== 二次进入：查看我的结果（凭结果查询码，任意设备只读）===== */
+  function openReentry(){
+    var ov=document.createElement('div');
+    ov.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(10,20,35,.84);z-index:135;display:flex;align-items:center;justify-content:center;padding:18px;box-sizing:border-box;';
+    var box=document.createElement('div');
+    box.style.cssText='background:#fff;border-radius:18px;max-width:400px;width:100%;padding:20px 18px;box-sizing:border-box;';
+    var title=document.createElement('div');title.textContent='查看我的结果';
+    title.style.cssText='font-size:16px;font-weight:800;color:#1F3A5F;text-align:center;';
+    var sub=document.createElement('div');sub.textContent='输入评测完成时给你的「结果查询码」（形如 R-XXXXXX）';
+    sub.style.cssText='font-size:13px;color:#5A6B82;text-align:center;margin:6px 0 14px;line-height:1.6;';
+    var inp=document.createElement('input');inp.type='text';inp.placeholder='请输入结果查询码';inp.maxLength=20;inp.autocomplete='off';
+    inp.style.cssText='width:100%;height:46px;border:1.5px solid #D9E2EE;border-radius:12px;font-size:15px;text-align:center;letter-spacing:.1em;box-sizing:border-box;';
+    var err=document.createElement('div');err.style.cssText='font-size:13px;color:#d44;text-align:center;margin-top:8px;display:none;';
+    var row=document.createElement('div');row.style.cssText='display:flex;gap:10px;margin-top:14px;';
+    var ok=document.createElement('button');ok.type='button';ok.textContent='查看';
+    ok.style.cssText='flex:1;background:linear-gradient(135deg,#5FA8E8,#3F83D8);color:#fff;border:0;border-radius:12px;height:44px;font-size:15px;font-weight:700;cursor:pointer;';
+    var cancel=document.createElement('button');cancel.type='button';cancel.textContent='取消';
+    cancel.style.cssText='flex:1;border:1.5px solid #D9E2EE;background:#fff;color:#1F3A5F;border-radius:12px;height:44px;font-size:15px;font-weight:700;cursor:pointer;';
+    ok.addEventListener('click',function(){
+      var code=(inp.value||'').trim().toUpperCase();
+      if(!code){err.textContent='请输入结果查询码';err.style.display='block';return;}
+      ok.disabled=true;ok.textContent='查询中…';
+      fetch(SUPABASE_URL+'/functions/v1/get-result',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','apikey':SUPABASE_ANON,'Authorization':'Bearer '+SUPABASE_ANON},
+        body:JSON.stringify({result_code:code})
+      }).then(function(r){return r.json();}).then(function(d){
+        ok.disabled=false;ok.textContent='查看';
+        if(d&&d.ok){ov.remove();reentryShow(code,d.result);}
+        else{err.textContent=(d&&d.message)||'未找到该结果，请检查查询码';err.style.display='block';}
+      }).catch(function(){ok.disabled=false;ok.textContent='查看';err.textContent='网络异常，请重试';err.style.display='block';});
+    });
+    cancel.addEventListener('click',function(){ov.remove();});
+    inp.addEventListener('keydown',function(e){if(e.key==='Enter'){ok.click();}});
+    row.appendChild(ok);row.appendChild(cancel);
+    box.appendChild(title);box.appendChild(sub);box.appendChild(inp);box.appendChild(err);box.appendChild(row);
+    ov.appendChild(box);ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});
+    document.body.appendChild(ov);
+    setTimeout(function(){inp.focus();},60);
+  }
+  function reentryShow(code,res){
+    var wj=(res&&res.weather)||{};
+    var topKey=(wj.topKey&&WEATHERS[wj.topKey])?wj.topKey:((res.result_label&&WEATHERS[res.result_label])?res.result_label:'sky');
+    var w=WEATHERS[topKey];
+    var identity=String(wj.identity||res.identity||'').slice(0,20);
+    state.reentry=true;
+    showResultCodeCard(code);
+    document.getElementById('result-note').textContent='已从历史结果恢复，可重新下载你的天气卡、完整报告与查询码。';
+    var simBox=document.getElementById('similar-box');if(simBox)simBox.style.display='none';
+    renderResultUI(w,topKey,identity);
+  }
+
+  /* ===== 完整情绪报告（长图）===== */
+  var REPORT_ADVICE={
+    sun:['把这份能量分给重要的人和事，别让它单点燃烧','偶尔留一点独处，阳光也需要休息','你的感染力很强，记得也照亮自己'],
+    sky:['继续保持这份清醒，但别把情绪憋太久','给信任的人偶尔开个口，天不会塌','稳定的你，是很多人的定心丸'],
+    mist:['温柔是你的底色，但也值得被温柔以待','云层太厚时，试着让阳光透一点点进来','你的共情很珍贵，记得优先照顾自己'],
+    rain:['敏感是你的天赋，不是负担','想太多时，把它写下来，会轻松很多','你懂别人，也要留点温柔给自己'],
+    storm:['情绪来得快去得也快，发完记得给自己收个尾','直接是你的优点，偶尔也试试软着陆','你的冲劲很宝贵，别忘了身边人的感受'],
+    rainbow:['把五彩留给生活，也留一份安静给自己','灵感多时，挑一两个落地，别让它只停在天空','你的感染力能点亮别人，也别熄灭自己'],
+    snow:['清冷是你的从容，不是疏离','话不多，但可以在重要的人面前多说一句','安静的力量，也要记得偶尔向世界亮个灯']
+  };
+  function drawReport(){
+    var meta=window.__weatherMeta||{},key=meta.topKey||'sky',w=meta.w||{},identity=meta.identity||'';
+    var cv=document.createElement('canvas');cv.width=800;cv.height=1560;
+    var ctx=cv.getContext('2d');
+    var colors=POSTER_GRAD[key]||POSTER_GRAD.sky,dark=!!POSTER_DARK[key];
+    var g=ctx.createLinearGradient(0,0,800,420);
+    if(colors.length===3){g.addColorStop(0,colors[0]);g.addColorStop(.5,colors[1]);g.addColorStop(1,colors[2]);}
+    else{g.addColorStop(0,colors[0]);g.addColorStop(1,colors[1]);}
+    ctx.fillStyle=g;ctx.fillRect(0,0,800,420);
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    var head=(dark?'#1F3A5F':'#FFFFFF');
+    ctx.fillStyle=head;ctx.font='700 30px sans-serif';ctx.fillText('我的情绪气象报告',400,80);
+    ctx.globalAlpha=.9;ctx.font='600 24px sans-serif';ctx.fillText(identity?('身份 · '+identity):'我的心情天气',400,132);ctx.globalAlpha=1;
+    var svgStr='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="'+head+'" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">'+String(ICONS[key]||'')+'</svg>';
+    var img=new Image();
+    function drawBody(){
+      ctx.fillStyle='#FFFFFF';ctx.fillRect(0,420,800,1140);
+      ctx.textBaseline='alphabetic';ctx.textAlign='left';
+      var y=480;
+      ctx.fillStyle='#24304A';ctx.font='800 22px sans-serif';ctx.fillText('你的情绪天气解读',60,y);y+=40;
+      ctx.fillStyle='#5A6B82';ctx.font='500 19px sans-serif';
+      y+=wrapText(ctx,w.desc||'',60,y,680,32,4)*32+24;
+      ctx.fillStyle='#24304A';ctx.font='800 22px sans-serif';ctx.fillText('你的性格标签',60,y);y+=42;
+      ctx.fillStyle='#5A6B82';ctx.font='500 19px sans-serif';
+      (w.tags||[]).forEach(function(t){ctx.fillText('· '+t,60,y);y+=30;});
+      y+=14;
+      ctx.fillStyle='#24304A';ctx.font='800 22px sans-serif';ctx.fillText('情绪温度参考',60,y);y+=40;
+      ctx.fillStyle='#5A6B82';ctx.font='500 19px sans-serif';
+      y+=wrapText(ctx,'你的情绪温度是 '+(w.temp||'')+'。它是一份体感参考，不代表健康指标——情绪不是恒定的，天气也会变化。',60,y,680,32,3)*32+24;
+      ctx.fillStyle='#24304A';ctx.font='800 22px sans-serif';ctx.fillText('给你的 3 条小建议',60,y);y+=42;
+      ctx.fillStyle='#5A6B82';ctx.font='500 19px sans-serif';
+      (REPORT_ADVICE[key]||[]).forEach(function(a,i){ctx.fillText((i+1)+'. '+a,60,y);y+=30;});
+      y+=16;
+      ctx.fillStyle='#24304A';ctx.font='800 22px sans-serif';ctx.fillText('如何再次查看我的结果',60,y);y+=40;
+      ctx.fillStyle='#5A6B82';ctx.font='500 19px sans-serif';
+      y+=wrapText(ctx,'回到情绪气象台首页 → 点「查看我的结果」→ 输入下方结果查询码，即可随时回来查看和下载。',60,y,680,32,3)*32+26;
+      ctx.fillStyle='#1F3A5F';ctx.font='800 30px sans-serif';ctx.textAlign='center';
+      ctx.fillText(window.__resultCode||'',400,y);y+=46;
+      ctx.fillStyle='#9AA9BD';ctx.font='400 16px sans-serif';
+      ctx.fillText('情绪气象台 · 仅供自我探索与娱乐，非专业心理评估',400,y+6);
+      showImageToSave(cv.toDataURL('image/png'),'情绪气象台-情绪报告.png');
+    }
+    img.onload=function(){ctx.drawImage(img,335,172,130,130);drawBody();};
+    img.onerror=drawBody;
+    img.src='data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(svgStr)));
+  }
+  /* 结果查询码卡片（供保存） */
+  function drawResultCodeCard(){
+    var meta=window.__weatherMeta||{},w=meta.w||{},identity=meta.identity||'',rc=window.__resultCode||'';
+    var cv=document.createElement('canvas');cv.width=640;cv.height=760;
+    var ctx=cv.getContext('2d');
+    var key=meta.topKey||'sky',colors=POSTER_GRAD[key]||POSTER_GRAD.sky,dark=!!POSTER_DARK[key];
+    var g=ctx.createLinearGradient(0,0,640,760);
+    if(colors.length===3){g.addColorStop(0,colors[0]);g.addColorStop(.5,colors[1]);g.addColorStop(1,colors[2]);}
+    else{g.addColorStop(0,colors[0]);g.addColorStop(1,colors[1]);}
+    ctx.fillStyle=g;ctx.fillRect(0,0,640,760);
+    var ink=dark?'#1F3A5F':'#FFFFFF',inkSoft=dark?'rgba(31,58,95,.72)':'rgba(255,255,255,.92)';
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillStyle=inkSoft;ctx.font='600 20px sans-serif';ctx.fillText('我的结果查询码',320,92);
+    ctx.fillStyle=ink;ctx.font='800 44px sans-serif';ctx.fillText(rc||'',320,180);
+    ctx.fillStyle='rgba(255,255,255,.5)';ctx.fillRect(200,240,240,2);
+    ctx.fillStyle=ink;ctx.font='700 24px sans-serif';
+    ctx.fillText(identity?('身份 · '+identity):'我的心情天气',320,300);
+    ctx.fillStyle=inkSoft;ctx.font='500 22px sans-serif';
+    ctx.fillText(w.type?((w.type||'')+' · '+(w.temp||'')):'',320,350);
+    ctx.fillStyle=dark?'rgba(255,255,255,.9)':'rgba(255,255,255,.24)';
+    rr(ctx,110,430,420,170,24);ctx.fill();
+    ctx.fillStyle=ink;ctx.font='600 22px sans-serif';
+    ctx.fillText('凭此码随时回来',320,500);
+    ctx.fillText('查看 / 下载你的结果',320,540);
+    ctx.fillStyle=inkSoft;ctx.font='500 16px sans-serif';
+    ctx.fillText('情绪气象台 · 保存此码，随时找回结果',320,660);
+    showImageToSave(cv.toDataURL('image/png'),'情绪气象台-结果查询码.png');
   }
 
   go('intro');

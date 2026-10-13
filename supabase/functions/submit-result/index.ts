@@ -55,6 +55,17 @@ async function verifyTicket(t: string): Promise<{ k: string; d: string; e: numbe
 const VALID_RESULTS = ["sun", "sky", "mist", "rain", "storm", "rainbow", "snow"];
 const REWARD_CENTS = 100; // 1 元（分）
 
+// 结果查询码：强随机、去易混淆字符（I/L/O/0/1），如 R-XXXXXXXXXX；与销售密钥独立，只读查看权
+const RC_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+function genResultCode(): string {
+  const n = RC_ALPHABET.length;
+  const buf = new Uint32Array(6);
+  crypto.getRandomValues(buf);
+  let s = "";
+  for (let i = 0; i < 6; i++) s += RC_ALPHABET[buf[i] % n];
+  return "R-" + s;
+}
+
 Deno.serve(async (req) => {
   const origin = req.headers.get("Origin") || "";
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders(origin) });
@@ -66,6 +77,7 @@ Deno.serve(async (req) => {
   try {
     let ticket = "", deviceId = "", identity = "", inv = "";
     let temp = 0, resultKey = "";
+    let weather: Record<string, unknown> | null = null;
     try {
       const body = await req.json();
       ticket = String(body.ticket || "").trim().slice(0, 512);
@@ -74,6 +86,20 @@ Deno.serve(async (req) => {
       inv = String(body.inv || "").trim().slice(0, 64);
       temp = Math.round(Number(body.temp));
       resultKey = String(body.result_key || "").trim().slice(0, 20);
+      // weather：该次结果快照（供二次进入重新渲染），仅取白名单字段
+      const bw = body.weather;
+      if (bw && typeof bw === "object") {
+        const tk2 = String(bw.topKey || "").trim().slice(0, 20);
+        const id2 = String(bw.identity || "").trim().slice(0, 20).replace(/[\x00-\x1F\x7F"]/g, "");
+        const tm2 = Math.round(Number(bw.temp));
+        const ty2 = String(bw.type || "").trim().slice(0, 40);
+        weather = {
+          topKey: (VALID_RESULTS.indexOf(tk2) < 0 ? resultKey : tk2),
+          identity: id2 || identity,
+          temp: (isFinite(tm2) ? tm2 : temp),
+          type: ty2,
+        };
+      }
     } catch {
       return respond(origin, 400, { ok: false, code: "bad_body" });
     }
@@ -106,11 +132,19 @@ Deno.serve(async (req) => {
       return respond(origin, 200, { ok: false, code: "invalid_key", message: "密钥已过期，请重新购买" });
     }
 
-    // ===== ② 结果匿名落库 =====
-    await supabase.from("mood_results").insert({
-      key_hash: kh, device_id: deviceId || "anon",
-      identity_label: identity, temp, result_label: resultKey,
-    }).then(() => {}, () => {});
+    // ===== ② 结果匿名落库（含结果查询码 + 结果快照） =====
+    let resultCode = "";
+    for (let attempt = 0; attempt < 3; attempt++) {
+      resultCode = genResultCode();
+      const { error } = await supabase.from("mood_results").insert({
+        key_hash: kh, device_id: deviceId || "anon",
+        identity_label: identity, temp, result_label: resultKey,
+        result_code: resultCode, weather_json: weather,
+      });
+      if (!error) break;
+      if (error && error.code === "23505") continue; // 唯一冲突（概率极低）→ 换码重试
+      resultCode = ""; break;
+    }
 
     // ===== ③ 邀请返现：好友完成评测，给分享者返 1 元站内券 =====
     let rewarded = false;
@@ -152,7 +186,7 @@ Deno.serve(async (req) => {
       };
     }
 
-    return respond(origin, 200, { ok: true, similar, rewarded: rewarded || undefined });
+    return respond(origin, 200, { ok: true, similar, rewarded: rewarded || undefined, result_code: resultCode || undefined });
   } catch (err) {
     return respond(origin, 500, { ok: false, code: "server" });
   }
