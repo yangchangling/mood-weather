@@ -119,7 +119,7 @@ Deno.serve(async (req) => {
         const { data: exist } = await supabase.from("license_keys").select("id").eq("key_hash", h).maybeSingle();
         if (exist) continue;
         const display = plain.slice(0, 5) + "••••" + plain.slice(-5);
-        const { error } = await supabase.from("license_keys").insert({ key_hash: h, key_display: display, status: "unused" });
+        const { error } = await supabase.from("license_keys").insert({ key_hash: h, key_display: display, status: "unused", device_limit: 1 });
         if (error) return respond(origin, 500, { ok: false, code: "server" });
         added.push({ key: plain, key_display: display });
       }

@@ -230,12 +230,12 @@ Deno.serve(async (req) => {
       { auth: { persistSession: false } },
     );
 
-    // ===== 会话期复查密钥状态（被停用/过期则拒绝落库） =====
+    // ===== 会话期复查密钥状态（被停用/已完成为 used/过期则拒绝落库） =====
     const { data: licRow, error: licErr } = await supabase
       .from("license_keys").select("key_hash,status,expires_at").eq("key_hash", kh).maybeSingle();
     if (licErr) return respond(origin, 500, { ok: false, code: "server" });
-    if (!licRow || licRow.status === "disabled") {
-      return respond(origin, 200, { ok: false, code: "invalid_key", message: "密钥已失效/未登录，请重新输入密钥" });
+    if (!licRow || licRow.status === "disabled" || licRow.status === "used") {
+      return respond(origin, 200, { ok: false, code: "invalid_key", message: "该密钥已完成测评（一码一用）或已停用，不可重复提交" });
     }
     if (licRow.expires_at && new Date(licRow.expires_at).getTime() < Date.now()) {
       return respond(origin, 200, { ok: false, code: "invalid_key", message: "密钥已过期，请重新购买" });
@@ -258,6 +258,14 @@ Deno.serve(async (req) => {
       if (!error) break;
       if (error && error.code === "23505") continue; // 唯一冲突（概率极低）→ 换码重试
       resultCode = ""; break;
+    }
+
+    // ===== 一码一用：测评完成即作废密钥（未完成前允许二次登录，完成后不可再登录） =====
+    if (resultCode) {
+      await supabase.from("license_keys")
+        .update({ status: "used", used_at: new Date().toISOString() })
+        .eq("key_hash", kh)
+        .eq("status", "unused");
     }
 
     // ===== ③ 邀请返现：好友完成评测，给分享者返 1 元站内券 =====

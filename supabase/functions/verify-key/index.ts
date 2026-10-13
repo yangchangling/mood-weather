@@ -100,9 +100,9 @@ Deno.serve(async (req) => {
     if (error) return respond(origin, 500, { ok: false, code: "server" });
     if (!row) return onFailure("invalid");
     if (row.status === "disabled") return onFailure("disabled");
-    // ===== 一码一用：已使用过的密钥拒绝再次激活（杜绝一码多用/共享） =====
+    // ===== 一码一用：已完成测评（status=used）的密钥拒绝再次登录（未完成前允许二次登录） =====
     if (row.status === "used") {
-      return respond(origin, 200, { ok: false, code: "used", message: "该密钥已使用过（一码一用），请重新购买" });
+      return respond(origin, 200, { ok: false, code: "used", message: "该密钥已完成测评（一码一用），不可再次登录" });
     }
     // ===== S2 有效期校验 =====
     if (row.expires_at && new Date(row.expires_at).getTime() < Date.now()) return onFailure("expired");
@@ -116,22 +116,9 @@ Deno.serve(async (req) => {
       if (dev?.reason === "no_key") return respond(origin, 500, { ok: false, code: "server" });
     }
 
-    // 首次使用：unused → used（原子更新，带状态条件，防并发重复激活）
-    let first = false;
-    if (row.status === "unused") {
-      const { data: upd, error: upErr } = await supabase
-        .from("license_keys")
-        .update({ status: "used", used_at: new Date().toISOString() })
-        .eq("key_hash", kh)
-        .eq("status", "unused")
-        .select("key_hash");
-      if (upErr) return respond(origin, 500, { ok: false, code: "server" });
-      // 并发下若已被其他请求抢先置 used，则本次视为"已使用"拒绝（一码一用）
-      if (!upd || upd.length === 0) {
-        return respond(origin, 200, { ok: false, code: "used", message: "该密钥已使用过（一码一用），请重新购买" });
-      }
-      first = true;
-    }
+    // 一码一用判定改为「完成测试后才作废」：登录本身不消耗密钥。
+    // 未完成测试（status 仍为 unused）允许同一密钥多次登录/继续；完成测试后 submit-result 会置为 used，届时此处拒绝二次登录。
+    const first = row.status === "unused";
 
     await resetFailure(); // 校验成功，重置该密钥的失败计数
 
