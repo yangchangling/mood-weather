@@ -1,6 +1,6 @@
 // ===== 情绪气象台 · 密钥管理后台（S2 吊销/延期）=====
 // 调用：POST /functions/v1/manage-key  body: { "admin_key":"...", "action":"...", "key":"..." }
-// action: stats | list | disable | enable | extend | clear-expiry | list-devices
+// action: stats | list | disable | enable | extend | clear-expiry | list-devices | find-results | log-sale
 // 仅持有 ADMIN_KEY 者可调用（env: MANAGE_KEY_ADMIN）
 // 安全：按密钥哈希（HASH_SECRET）查找；列表仅返回脱敏 key_display，不透出明文。
 
@@ -165,6 +165,22 @@ Deno.serve(async (req) => {
     if (action === "clear-expiry") {
       const { error } = await supabase.from("license_keys").update({ expires_at: null }).eq("key_hash", kh);
       return respond(origin, error ? 500 : 200, error ? { ok: false, code: "server" } : { ok: true });
+    }
+
+    // ===== 按密钥查近期结果码（B）：输入密钥明文，返回该密钥近 30 天消费产生的结果（含 result_code，脱敏）=====
+    // 用途：管理员查到结果码后复制发给用户，用户即可凭码二次进入查看结果。只返回摘要，不透出 device_id/key_hash/weather_json 全文。
+    if (action === "find-results") {
+      const { data: lic } = await supabase.from("license_keys").select("key_display").eq("key_hash", kh).maybeSingle();
+      if (!lic) return respond(origin, 200, { ok: true, found: false, results: [] });
+      const since = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
+      const { data } = await supabase
+        .from("mood_results")
+        .select("identity_label,result_label,temp,result_code,created_at")
+        .eq("key_hash", kh)
+        .gte("created_at", since)
+        .order("created_at", { ascending: false })
+        .limit(1000); // 一码一用下每把密钥近30天最多1条；1000 仅为防异常数据膨胀的兜底，正常不会触发
+      return respond(origin, 200, { ok: true, found: true, key_display: lic.key_display, since, results: data || [] });
     }
 
     // ===== 对账（C）：记录"哪把密钥发给了哪个订单"，台账只存脱敏标识，不含明文 =====

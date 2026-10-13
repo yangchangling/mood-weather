@@ -302,6 +302,7 @@
         <div class="result-actions">
           <button class="btn sunny" id="btn-share">保存并分享天气卡</button>
           <button class="btn" id="btn-report">完整情绪报告</button>
+          <button class="btn" id="btn-record">保存测评记录</button>
           <button class="btn ghost" id="btn-again">再测一次</button>
         </div>
         <div class="result-code-card" id="result-code-card" style="display:none;margin:12px 0 4px;background:#fff;border:1px solid rgba(95,168,232,.45);border-radius:16px;padding:14px 16px;text-align:center;">
@@ -849,9 +850,11 @@
     window.__moodShare=w.share;
     window.__weatherMeta={topKey:topKey,w:w,identity:identity};
     window.__inviteText=(identity?'作为'+identity+'，我':'我')+'测出了「'+w.type+'」，你是什么天气？8题2分钟，来测你的心情天气 👉 '+inviteUrl();
-    // 二次进入（历史结果恢复）：隐藏"再测一次"，保留重新下载
+    // 二次进入（历史结果恢复）：隐藏"再测一次"与"保存测评记录"（恢复视图无题目答案），保留重新下载
     var again=document.getElementById('btn-again');
     if(again)again.style.display=isReentry?'none':'';
+    var recBtn=document.getElementById('btn-record');
+    if(recBtn)recBtn.style.display=isReentry?'none':'';
     go('result');
     var fill=document.getElementById('pbar-fill');fill.style.width='0%';
     setTimeout(function(){fill.style.width='100%';},100);
@@ -923,6 +926,8 @@
   });
   var btnReport=document.getElementById('btn-report');
   if(btnReport)btnReport.addEventListener('click',drawReport);
+  var btnRecord=document.getElementById('btn-record');
+  if(btnRecord)btnRecord.addEventListener('click',drawRecord);
   var btnCopyRc=document.getElementById('btn-copy-rc');
   if(btnCopyRc)btnCopyRc.addEventListener('click',function(){copyText(window.__resultCode||'','结果查询码已复制');});
   var btnSaveRc=document.getElementById('btn-save-rc');
@@ -1159,51 +1164,170 @@
     rainbow:['把五彩留给生活，也留一份安静给自己','灵感多时，挑一两个落地，别让它只停在天空','你的感染力能点亮别人，也别熄灭自己'],
     snow:['清冷是你的从容，不是疏离','话不多，但可以在重要的人面前多说一句','安静的力量，也要记得偶尔向世界亮个灯']
   };
-  function drawReport(){
-    var meta=window.__weatherMeta||{},key=meta.topKey||'sky',w=meta.w||{},identity=meta.identity||'';
-    var cv=document.createElement('canvas');cv.width=800;cv.height=1560;
-    var ctx=cv.getContext('2d');
+  /* ===== 完整情绪报告·深度维度（情绪天赋/盲区/人际角色/压力预警/行动清单） ===== */
+  var REPORT_DEEP={
+    sun:{talent:'把「爱笑、有感染力」翻译成天赋：你有天然的情绪领导力与正向渲染力，不需要刻意讲道理，光是你的状态就能给一群人充电——这是被低估的「情绪资产」。',
+      blind:'你习惯用阳光盖住自己的阴天。别人以为你永远开心，其实你会累、会委屈，只是不敢停下来让乌云露出来——因为你怕「扫兴」。',
+      role:'你是人群里的「情绪电源」——聚会、团队低谷时大家会下意识看向你，因为有你，氛围就不会塌。',
+      stress:'当你的「光」也被耗尽时，你会突然很安静，甚至想躲开所有人。那不是你变了，是你的太阳也需要云来遮一遮、歇一歇。',
+      actions:['每天留 20 分钟「不发光」时间：不回应任何人，只做让自己松弛的小事','允许自己说一次「今天我不太开心」，不用解释、不用转场','把最擅长的照亮别人，分 1 成给自己——先充电再发光','低落时先做一件 5 分钟能完成的小事，用成就感把乌云顶开','睡前记下 1 件「为别人做的事」和 1 件「为自己做的事」，找回平衡']},
+    sky:{talent:'把「清醒通透」翻译成天赋：你有超强的情绪锚定力与全局判断力，风浪再大也能把自己稳住，是能扛事、也能兜底的人——这种稳定本身就是稀缺的「定海神针」。',
+      blind:'你太擅长「稳住」，反而把真实情绪关在了蓝天背后。别人以为你没事，其实你也翻涌——只是把「不说」当成了体面，久了会憋成内伤。',
+      role:'你是团队和朋友里的「定海神针」——越是混乱，大家越愿意听你一句「没事，慢慢来」。',
+      stress:'当所有人都依赖你时，你最容易硬撑到情绪「过载」，然后突然沉默或冷淡。那不是冷漠，是你撑得太久，需要被人看见一次。',
+      actions:['每周至少一次，主动告诉一个人「我现在也有点烦/累」','情绪翻涌时，先深呼吸 3 次再决定要不要「稳住」','把「我可以自己搞定」改成「我需要你帮我……」——求助不是软弱','睡前写下当天一件没说出口的情绪，试着说出来或写下来','允许自己在信任的人面前「崩」一次，你会发现天不会塌']},
+    mist:{talent:'把「温柔高共情」翻译成天赋：你有近乎天赋的情绪雷达，能精准读懂别人的言外之意和藏起来的需要，是大家愿意托付情绪的人——这份「被信任」极其珍贵。',
+      blind:'你太会照顾别人，却常常忘了自己也在等一句关心。你把「不让别人为难」当成习惯，久了，别人真的以为你不需要被照顾。',
+      role:'你是人群里的「情绪缓冲带」——大家有压力会找你倾诉，因为你总是温柔接住、从不评判。',
+      stress:'当你的付出没被看见、或积压太久，你会突然想「消失」一下，不想再听别人的心事。那不是变冷漠，是你的情绪也需要有人接一次。',
+      actions:['今天把「你还好吗」这句关心，先问给自己一次','学会一句「我也需要人陪」——对朋友是信任，不是负担','每天记一次「我为自己做的事」，别只记别人','压力大时先照顾自己的感受，再决定要不要继续倾听','允许自己偶尔「不给回应」——温和也要有边界，能量不是无限的']},
+    rain:{talent:'把「敏感想太多」翻译成天赋：你能读到别人说不出口的情绪，能察觉空气里最细微的变化——这不是内耗，是别人求之不得的洞察力与共情力，你是「能读空气的人」。',
+      blind:'你把「想太多」当成了缺点，其实它让你更懂珍惜、更早察觉风险。真正要小心的，是你太在意别人、反而把自己累到淋湿。',
+      role:'你是人群里的「读心者」——别人没开口，你已经懂了他的难过，常被当成最贴心的倾诉对象。',
+      stress:'当你把太多人的情绪装进心里，会突然觉得自己「撑不住」，只想一个人安静躲雨。那不是脆弱，是你的心雨衣也湿透了，需要晾一晾。',
+      actions:['把「想太多」写下来——写下的那一刻，它就轻了一半','每天给情绪设一个「暂停键」：到点就告诉自己，今天不想了','学着分清「别人的情绪」和「自己的情绪」，不为别人的晴天买单','想太多时去动一动（散步/拉伸），让念头跟着身体停下来','把读懂别人的那份心，也读一次自己：你今天到底怎么了？']},
+    storm:{talent:'把「直接、有冲劲」翻译成天赋：你有顶级的行动力和爆发力，敢想敢说、说干就干，情绪来得快、过得更快——你的雷声是能给众人壮胆的鼓点，也是推进事情的引擎。',
+      blind:'你的直接是优点，但「太快」有时会吓到慢热的人、错过更深的连接。真正成熟的勇敢，是冲劲之上再加一点「软着陆」。',
+      role:'你是人群里的「发动机」和「鼓点」——聚会你带节奏，项目你推进度，大家跟着你就有劲儿。',
+      stress:'你情绪「打雷」时，容易话说得重、动作很急，过后又后悔。那不是你坏，是你需要把雷声调到「会伤人」之前，先给自己一个缓冲。',
+      actions:['情绪上头时，先停 10 秒再开口——给雷声一个缓冲','把「我要」改成「我们可以先试一步」：急，但不伤人','每次发完「雷」，主动收个尾：「我刚才有点急，不是针对你」','把高涨的能量，固定投给一件具体的小目标，别让它空转','睡前复盘：今天哪些话说得冲，明天换种说法会不会更好']},
+    rainbow:{talent:'把「脑洞大、爱热闹」翻译成天赋：你有罕见的创造力和情绪感染力，能在平淡里发现惊喜，把普通日子过成彩色——你是那种自带光源、让人想靠近的人。',
+      blind:'你习惯把最好玩的一面给人看，却把自己安静敏感的那一面藏得很深。热闹是你的外壳，不是全部——你也需要有人看穿你「彩色」底下也有云。',
+      role:'你是人群里的「快乐制造机」——朋友圈的热闹、聚会的氛围，很多都靠你点亮，你是大家心情的「调色盘」。',
+      stress:'当你的「彩色」也没了，你会突然失去表达欲、安静下来，甚至怀疑自己「是不是没意思了」。那不是你暗淡，是你也需要别人来给你上点色。',
+      actions:['把脑子里最亮的灵感，挑 1 个真正动手做出来，别让它只停在天上','允许自己有一天「不有趣」——你的价值不是靠逗笑别人证明的','热闹过后留 10 分钟给自己静静，别让透支变成习惯','把创造力也用来给自己设计一件「舒服小事」','低落时翻一翻你拍过/收藏的彩色瞬间，提醒自己你自带光源']},
+    snow:{talent:'把「话少、清冷」翻译成天赋：你有极强的情感自持力和判断力，不轻易被带节奏，情绪稳定、边界清晰——你的安静不是疏离，是一种让人安心的「有分寸的温柔」。',
+      blind:'你习惯「自己消化」，把「不说」当独立，其实久了，真正懂你的人会心疼你一个人扛。清冷是你的铠甲，别让它隔开你该靠近的人。',
+      role:'你是人群里的「冷静坐标」——大家都浮躁时，你是那个能一针见血、稳住局面的人，话少但句句在点子上。',
+      stress:'当你压抑太久，会突然「冷到结冰」：关上门、不说话、谁都叫不动。那不是绝情，是你需要被人在雪地里找到一次、拉一把。',
+      actions:['每周至少一次，在重要的人面前多说一句心里话，别让沉默成习惯','情绪积压时先写下来再决定要不要说——写作是你的出口','把「我不需要」偶尔改成「其实我想要……」，独立也可以不逞强','试着主动关心一个人一次，你会发现打开一点也很安全','睡前给自己一句肯定：你认真、可靠、值得被好好对待']}
+  };
+  // ===== 完整情绪报告（分页多张：天气 / 天赋·盲区 / 角色·压力 / 行动·查询码）=====
+  function reportCanvas(h){var cv=document.createElement('canvas');cv.width=800;cv.height=h;return {cv:cv,ctx:cv.getContext('2d')};}
+  function reportHeader(ctx,h,title,sub,key){
     var colors=POSTER_GRAD[key]||POSTER_GRAD.sky,dark=!!POSTER_DARK[key];
-    var g=ctx.createLinearGradient(0,0,800,420);
-    if(colors.length===3){g.addColorStop(0,colors[0]);g.addColorStop(.5,colors[1]);g.addColorStop(1,colors[2]);}
-    else{g.addColorStop(0,colors[0]);g.addColorStop(1,colors[1]);}
-    ctx.fillStyle=g;ctx.fillRect(0,0,800,420);
+    var g=ctx.createLinearGradient(0,0,800,h);
+    if(colors.length===3){g.addColorStop(0,colors[0]);g.addColorStop(.5,colors[1]);g.addColorStop(1,colors[2]);}else{g.addColorStop(0,colors[0]);g.addColorStop(1,colors[1]);}
+    ctx.fillStyle=g;ctx.fillRect(0,0,800,h);
     ctx.textAlign='center';ctx.textBaseline='middle';
-    var head=(dark?'#1F3A5F':'#FFFFFF');
-    ctx.fillStyle=head;ctx.font='700 30px sans-serif';ctx.fillText('我的情绪气象报告',400,80);
-    ctx.globalAlpha=.9;ctx.font='600 24px sans-serif';ctx.fillText(identity?('身份 · '+identity):'我的心情天气',400,132);ctx.globalAlpha=1;
-    var svgStr='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="'+head+'" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">'+String(ICONS[key]||'')+'</svg>';
-    var img=new Image();
-    function drawBody(){
-      ctx.fillStyle='#FFFFFF';ctx.fillRect(0,420,800,1140);
-      ctx.textBaseline='alphabetic';ctx.textAlign='left';
-      var y=480;
-      ctx.fillStyle='#24304A';ctx.font='800 22px sans-serif';ctx.fillText('你的情绪天气解读',60,y);y+=40;
-      ctx.fillStyle='#5A6B82';ctx.font='500 19px sans-serif';
-      y+=wrapText(ctx,w.desc||'',60,y,680,32,4)*32+24;
-      ctx.fillStyle='#24304A';ctx.font='800 22px sans-serif';ctx.fillText('你的性格标签',60,y);y+=42;
-      ctx.fillStyle='#5A6B82';ctx.font='500 19px sans-serif';
-      (w.tags||[]).forEach(function(t){ctx.fillText('· '+t,60,y);y+=30;});
-      y+=14;
-      ctx.fillStyle='#24304A';ctx.font='800 22px sans-serif';ctx.fillText('情绪温度参考',60,y);y+=40;
-      ctx.fillStyle='#5A6B82';ctx.font='500 19px sans-serif';
-      y+=wrapText(ctx,'你的情绪温度是 '+(w.temp||'')+'。它是一份体感参考，不代表健康指标——情绪不是恒定的，天气也会变化。',60,y,680,32,3)*32+24;
-      ctx.fillStyle='#24304A';ctx.font='800 22px sans-serif';ctx.fillText('给你的 3 条小建议',60,y);y+=42;
-      ctx.fillStyle='#5A6B82';ctx.font='500 19px sans-serif';
-      (REPORT_ADVICE[key]||[]).forEach(function(a,i){ctx.fillText((i+1)+'. '+a,60,y);y+=30;});
-      y+=16;
-      ctx.fillStyle='#24304A';ctx.font='800 22px sans-serif';ctx.fillText('如何再次查看我的结果',60,y);y+=40;
-      ctx.fillStyle='#5A6B82';ctx.font='500 19px sans-serif';
-      y+=wrapText(ctx,'回到情绪气象台首页 → 点「查看我的结果」→ 输入下方结果查询码，即可随时回来查看和下载。',60,y,680,32,3)*32+26;
-      ctx.fillStyle='#1F3A5F';ctx.font='800 30px sans-serif';ctx.textAlign='center';
-      ctx.fillText(window.__resultCode||'',400,y);y+=46;
-      ctx.fillStyle='#9AA9BD';ctx.font='400 16px sans-serif';
-      ctx.fillText('情绪气象台 · 仅供自我探索与娱乐，非专业心理评估',400,y+6);
-      showImageToSave(cv.toDataURL('image/png'),'情绪气象台-情绪报告.png');
+    var head=dark?'#1F3A5F':'#FFFFFF';
+    ctx.fillStyle=head;ctx.font='800 30px sans-serif';ctx.fillText(title,400,60);
+    ctx.globalAlpha=.92;ctx.font='600 19px sans-serif';ctx.fillText(sub,400,106);ctx.globalAlpha=1;
+    ctx.textBaseline='alphabetic';ctx.textAlign='left';
+    return head;
+  }
+  function reportSectionTitle(ctx,y,t){ctx.fillStyle='#24304A';ctx.font='800 21px sans-serif';ctx.fillText(t,60,y);return y+36;}
+  function reportBody(ctx,y,text,maxLines){ctx.fillStyle='#5A6B82';ctx.font='500 18px sans-serif';var used=wrapText(ctx,text,60,y,680,30,maxLines||6);return y+used*30+16;}
+  function drawReport(){
+    var meta=window.__weatherMeta||{},key=meta.topKey||'sky',w=meta.w||{},identity=meta.identity||'',deep=REPORT_DEEP[key]||{};
+    var pages=[];
+    // P1 我的情绪天气
+    var p1=reportCanvas(1140);var c1=p1.ctx;reportHeader(c1,420,'我的情绪气象报告',identity?('身份 · '+identity):'我的心情天气',key);
+    c1.fillStyle='#FFFFFF';c1.fillRect(0,420,800,720);
+    var y1=reportSectionTitle(c1,482,'你的情绪天气解读');
+    y1=reportBody(c1,y1,w.desc||'',6);
+    y1=reportSectionTitle(c1,y1,'你的性格标签');
+    c1.fillStyle='#5A6B82';c1.font='500 18px sans-serif';(w.tags||[]).forEach(function(t){c1.fillText('· '+t,60,y1);y1+=28;});y1+=10;
+    y1=reportSectionTitle(c1,y1,'情绪温度参考');
+    y1=reportBody(c1,y1,'你的情绪温度是 '+(w.temp||'')+'。它是一份体感参考，不代表健康指标——情绪不是恒定的，天气也会变化。',4);
+    c1.fillStyle='#9AA9BD';c1.font='400 15px sans-serif';c1.fillText('情绪气象台 · 仅供自我探索与娱乐，非专业心理评估',60,y1+12);
+    pages.push({dataUrl:p1.cv.toDataURL('image/png'),label:'我的情绪天气'});
+    // P2 情绪天赋 & 盲区
+    var p2=reportCanvas(1180);var c2=p2.ctx;reportHeader(c2,150,'你的情绪天赋','把「别人眼中的你」翻译成「你真实的力量」',key);
+    var y2=reportSectionTitle(c2,210,'· 情绪天赋');
+    y2=reportBody(c2,y2,deep.talent||'',8);
+    y2+=14;
+    y2=reportSectionTitle(c2,y2,'· 你的情绪盲区（一句话点醒）');
+    y2=reportBody(c2,y2,deep.blind||'',8);
+    c2.fillStyle='#9AA9BD';c2.font='400 15px sans-serif';c2.fillText('第 2 页 / 共 4 页 · 情绪天赋与盲区',60,1160);
+    pages.push({dataUrl:p2.cv.toDataURL('image/png'),label:'情绪天赋与盲区'});
+    // P3 人际角色 & 压力预警
+    var p3=reportCanvas(1200);var c3=p3.ctx;reportHeader(c3,150,'你在关系里的位置','你如何被这个世界看见、又是如何撑住的',key);
+    var y3=reportSectionTitle(c3,210,'· 你的人际角色');
+    y3=reportBody(c3,y3,deep.role||'',6);
+    y3+=14;
+    y3=reportSectionTitle(c3,y3,'· 情绪转阴时（压力预警）');
+    y3=reportBody(c3,y3,deep.stress||'',8);
+    c3.fillStyle='#9AA9BD';c3.font='400 15px sans-serif';c3.fillText('第 3 页 / 共 4 页 · 人际角色与压力预警',60,1180);
+    pages.push({dataUrl:p3.cv.toDataURL('image/png'),label:'人际角色与压力预警'});
+    // P4 行动清单 & 查询码
+    var p4=reportCanvas(1340);var c4=p4.ctx;reportHeader(c4,150,'给你的 5 件小事','今天就能做，把情绪天气调回你想要的样子',key);
+    var y4=reportSectionTitle(c4,210,'· 情绪行动清单');
+    c4.fillStyle='#5A6B82';c4.font='500 18px sans-serif';
+    (deep.actions||[]).forEach(function(a,i){c4.fillText((i+1)+'. '+a,60,y4);y4+=32;});y4+=14;
+    y4=reportSectionTitle(c4,y4,'· 如何再次查看我的结果');
+    y4=reportBody(c4,y4,'回到情绪气象台首页 → 点「查看我的结果」→ 输入下方结果查询码，即可随时回来查看、下载报告与测评记录。',3);
+    c4.fillStyle='#1F3A5F';c4.font='800 30px sans-serif';c4.textAlign='center';
+    c4.fillText(window.__resultCode||'',400,y4);y4+=42;
+    c4.textAlign='left';
+    c4.fillStyle='#9AA9BD';c4.font='400 15px sans-serif';
+    c4.fillText('保存测评记录可回顾每题作答 · 仅供自我探索与娱乐，非专业心理评估',60,y4);
+    pages.push({dataUrl:p4.cv.toDataURL('image/png'),label:'行动清单与查询码'});
+    showReportViewer(pages);
+  }
+  // 多图分页报告查看器（上一页/下一页 + 保存此页）
+  function showReportViewer(pages){
+    var ov=document.createElement('div');
+    ov.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(10,20,35,.84);z-index:130;display:flex;align-items:center;justify-content:center;padding:18px;box-sizing:border-box;';
+    var box=document.createElement('div');
+    box.style.cssText='background:#fff;border-radius:18px;max-width:460px;width:100%;max-height:94vh;overflow:auto;padding:14px;box-sizing:border-box;';
+    var title=document.createElement('div');title.textContent='完整情绪报告 · 共 '+pages.length+' 页';
+    title.style.cssText='font-size:15px;font-weight:800;color:#1F3A5F;text-align:center;';
+    var img=document.createElement('img');img.style.cssText='width:100%;height:auto;border-radius:12px;display:block;margin:10px 0;box-shadow:0 6px 20px rgba(0,0,0,.12);';
+    var pg=document.createElement('div');pg.style.cssText='font-size:12px;color:#5A6B82;text-align:center;margin-bottom:8px;';
+    var hint=document.createElement('div');hint.textContent='逐页查看，点「保存此页」或长按图片即可保存到相册。';
+    hint.style.cssText='font-size:12px;color:#5A6B82;line-height:1.7;text-align:center;margin-bottom:10px;';
+    var row=document.createElement('div');row.style.cssText='display:flex;gap:8px;margin-bottom:10px;';
+    var prev=document.createElement('button');prev.type='button';prev.textContent='‹ 上一页';
+    var next=document.createElement('button');next.type='button';next.textContent='下一页 ›';
+    var save=document.createElement('a');save.style.cssText='flex:1;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#5FA8E8,#3F83D8);color:#fff;border-radius:11px;height:44px;font-size:15px;font-weight:700;text-decoration:none;cursor:pointer;';
+    var close=document.createElement('button');close.type='button';close.textContent='关闭';
+    [prev,next,close].forEach(function(b){b.style.cssText='border:1.5px solid #D9E2EE;background:#fff;color:#1F3A5F;border-radius:11px;height:44px;font-size:14px;font-weight:700;cursor:pointer;padding:0 12px;';});
+    var idx=0;
+    function show(){
+      var p=pages[idx];
+      img.src=p.dataUrl;img.alt=p.label;
+      pg.textContent='第 '+(idx+1)+' 页 / 共 '+pages.length+' 页 · '+p.label;
+      save.href=p.dataUrl;save.download='情绪气象台-'+p.label+'.png';save.textContent='保存此页';
+      prev.style.visibility=idx===0?'hidden':'visible';
+      next.style.visibility=idx===pages.length-1?'hidden':'visible';
     }
-    img.onload=function(){ctx.drawImage(img,335,172,130,130);drawBody();};
-    img.onerror=drawBody;
-    img.src='data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(svgStr)));
+    prev.addEventListener('click',function(){if(idx>0){idx--;show();}});
+    next.addEventListener('click',function(){if(idx<pages.length-1){idx++;show();}});
+    close.addEventListener('click',function(){ov.remove();});
+    row.appendChild(prev);row.appendChild(next);row.appendChild(save);
+    box.appendChild(title);box.appendChild(img);box.appendChild(pg);box.appendChild(hint);box.appendChild(row);box.appendChild(close);
+    ov.appendChild(box);
+    ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});
+    document.body.appendChild(ov);
+    show();
+  }
+  // ===== 保存测评记录（题目+答案回顾长图）=====
+  function drawRecord(){
+    var meta=window.__weatherMeta||{},w=meta.w||{},identity=meta.identity||'',key=meta.topKey||'sky';
+    var qs=QUESTIONS,ans=state.answers||[];
+    var h=560+qs.length*118;
+    var p=reportCanvas(h);var ctx=p.ctx;
+    reportHeader(ctx,300,'我的测评记录',identity?('身份 · '+identity):'我的心情天气',key);
+    ctx.fillStyle='#FFFFFF';ctx.fillRect(0,300,800,h-300);
+    var y=reportSectionTitle(ctx,360,'· 你的作答回顾');
+    ctx.fillStyle='#5A6B82';ctx.font='500 15px sans-serif';
+    ctx.fillText('最终天气：'+w.type+' · 情绪温度 '+w.temp,60,y);y+=30;
+    for(var i=0;i<qs.length;i++){
+      var q=qs[i],ai=ans[i];
+      var opt=(typeof ai==='number'&&q.options&&q.options[ai])?q.options[ai].text:'未作答';
+      ctx.fillStyle='#24304A';ctx.font='800 16px sans-serif';
+      ctx.fillText((i+1)+'. '+(q.badge?('['+q.badge+'] '):'')+q.title,60,y);y+=24;
+      ctx.fillStyle='#3F83D8';ctx.font='600 16px sans-serif';
+      ctx.fillText('✓ '+opt,72,y);y+=32;
+      ctx.fillStyle='#EEF1F6';ctx.fillRect(60,y-6,680,1);y+=18;
+    }
+    y+=6;
+    ctx.fillStyle='#24304A';ctx.font='800 19px sans-serif';ctx.fillText('结果查询码',60,y);y+=32;
+    ctx.fillStyle='#1F3A5F';ctx.font='700 24px sans-serif';ctx.fillText(window.__resultCode||'',60,y);y+=34;
+    ctx.fillStyle='#9AA9BD';ctx.font='400 14px sans-serif';
+    ctx.fillText('情绪气象台 · 仅供自我探索与娱乐，非专业心理评估',60,y);
+    showImageToSave(p.cv.toDataURL('image/png'),'情绪气象台-我的测评记录.png');
   }
   /* 结果查询码卡片（供保存） */
   function drawResultCodeCard(){
