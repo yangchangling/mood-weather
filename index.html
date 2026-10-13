@@ -178,7 +178,7 @@
 </style>
 </head>
 <body>
-  <div id="verTag" style="position:fixed;bottom:4px;right:6px;font-size:10px;color:rgba(20,40,70,.30);z-index:9999;pointer-events:none;background:rgba(255,255,255,.7);padding:1px 6px;border-radius:6px;">v-ai-1013-C</div>
+  <div id="verTag" style="position:fixed;bottom:4px;right:6px;font-size:10px;color:rgba(20,40,70,.30);z-index:9999;pointer-events:none;background:rgba(255,255,255,.7);padding:1px 6px;border-radius:6px;">v-ai-1013-D</div>
   <div class="bg" aria-hidden="true">
     <div class="glow g1"></div><div class="glow g2"></div><div class="glow g3"></div>
     <div class="cloud-bg"><div class="cb c1"></div><div class="cb c2"></div><div class="cb c3"></div><div class="cb c4"></div></div>
@@ -910,6 +910,17 @@
       if(d&&d.ok){
         if(d.report)window.__report=d.report;
         if(d.result_code)showResultCodeCard(d.result_code);
+        // 持久化报告 + 结果码 + 作答快照，供「完整情绪报告」在会话状态丢失时也能从本地恢复 AI 报告
+        try{
+          localStorage.setItem('mood_report_v1',JSON.stringify({
+            report:d.report||null,
+            rc:d.result_code||'',
+            questions:window.__questions||[],
+            answers:window.__answers||[],
+            key:resultKey||'',
+            identity:String(identity||'').slice(0,20)
+          }));
+        }catch(e){};
         if(d.rewarded)toast('好友已完成测评，你获得 1 元返现（下次下单抵扣）');
         var sim=d.similar;
         if(sim&&sim.count>0){
@@ -1291,8 +1302,23 @@
     // AI 深度报告优先：基于真实作答生成，有分析、有结论、每份不同
     var rep=window.__report;
     if(rep&&rep.summary&&Array.isArray(rep.sections)&&rep.sections.length){drawAIReport(rep,w,key,identity);return;}
-    // 本地无 AI 报告但有结果码 → 自动从后端按结果码恢复（规避"首次提交后 report 丢失"导致回退模板的问题）
-    var rc=window.__resultCode;
+    // 会话状态可能已丢失（手机端刷新/浏览器回收 window）：从 localStorage 恢复
+    var stored=null;try{stored=JSON.parse(localStorage.getItem('mood_report_v1')||'null');}catch(e){stored=null;}
+    if(stored){
+      var r3=stored.report;
+      if(r3&&r3.summary&&Array.isArray(r3.sections)&&r3.sections.length){
+        window.__report=r3;
+        if(stored.rc)window.__resultCode=stored.rc;
+        if(stored.questions&&stored.questions.length)window.__questions=stored.questions;
+        if(stored.answers&&stored.answers.length)window.__answers=stored.answers;
+        if(stored.key&&WEATHERS[stored.key])key=stored.key;
+        if(stored.identity)identity=stored.identity;
+        if(!w||!w.name)w=WEATHERS[key]||{};
+        drawAIReport(r3,w,key,identity);return;
+      }
+    }
+    // 本地仍无 AI 报告但有结果码 → 自动从后端按结果码恢复（规避"首次提交后 report 丢失"导致回退模板的问题）
+    var rc=window.__resultCode||(stored&&stored.rc)||'';
     if(rc){
       var btn=document.getElementById('btn-report');
       if(btn)btn.textContent='报告生成中…';
