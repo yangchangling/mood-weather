@@ -94,6 +94,16 @@
       <div id="gen-keys"></div>
     </div>
 
+    <!-- 按密钥查结果码 -->
+    <div class="card">
+      <h3>按密钥查近期结果码</h3>
+      <div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <input type="text" id="find-key" placeholder="输入密钥明文（如 MOOD-9A50-12AB）" style="flex:1;min-width:200px;font-family:ui-monospace,Menlo,Consolas,monospace;">
+        <button class="btn-primary" id="btn-find">查询（近 30 天）</button>
+      </div>
+      <div id="find-body"><div class="empty">输入密钥明文后点「查询」，查看该密钥近 30 天产生的结果码；查到后可复制结果码发给用户，用户即可凭码二次进入查看。</div></div>
+    </div>
+
     <!-- 密钥列表 -->
     <div class="card">
       <h3>密钥列表（脱敏）</h3>
@@ -251,6 +261,47 @@
   }
   document.getElementById('list-filter').addEventListener('input',function(){renderList(this.value);});
   document.getElementById('btn-refresh').addEventListener('click',function(){loadList();});
+
+  // ===== 按密钥查近期结果码 =====
+  var WMAP={sun:'晴朗·暖阳型',sky:'蓝天·通透型',mist:'多云·平和型',rain:'小雨·细腻型',storm:'雷阵雨·热烈型',rainbow:'彩虹·绚烂型',snow:'小雪·清冷型'};
+  document.getElementById('btn-find').addEventListener('click',function(){
+    var key=document.getElementById('find-key').value.trim();
+    if(!key){toast('请输入密钥明文',1);return;}
+    var btn=document.getElementById('btn-find');btn.disabled=true;btn.textContent='查询中…';
+    api('find-results',{key:key}).then(function(d){
+      btn.disabled=false;btn.textContent='查询（近 30 天）';
+      renderFind(d);
+    }).catch(function(){btn.disabled=false;btn.textContent='查询（近 30 天）';toast('网络异常，请重试',1);});
+  });
+  document.getElementById('find-key').addEventListener('keydown',function(e){if(e.key==='Enter'){document.getElementById('btn-find').click();}});
+  function renderFind(d){
+    var box=document.getElementById('find-body');box.innerHTML='';
+    if(!d||!d.ok){var e=document.createElement('div');e.className='empty';e.textContent=(d&&d.code)||'查询失败';box.appendChild(e);return;}
+    if(!d.found){var e2=document.createElement('div');e2.className='empty';e2.textContent='未找到该密钥，请检查明文是否正确';box.appendChild(e2);return;}
+    if(!d.results||!d.results.length){var e3=document.createElement('div');e3.className='empty';e3.textContent='该密钥近 30 天暂无测试结果';box.appendChild(e3);return;}
+    var table=document.createElement('table');table.className='table';
+    table.innerHTML='<tr><th>时间</th><th>身份</th><th>天气</th><th>温度</th><th>结果码</th><th></th></tr>';
+    d.results.forEach(function(r){
+      var tr=document.createElement('tr');
+      var t=r.created_at?r.created_at.slice(0,16).replace('T',' '):'—';
+      var wname=WMAP[r.result_label]||r.result_label||'—';
+      var tdCode=document.createElement('td');tdCode.className='mask';tdCode.textContent=r.result_code||'—';
+      var tdCopy=document.createElement('td');
+      var copy=document.createElement('button');copy.className='btn-ghost btn-sm';copy.textContent='复制码';
+      if(r.result_code){copy.addEventListener('click',function(){
+        var ta=document.createElement('textarea');ta.value=r.result_code;document.body.appendChild(ta);ta.select();
+        try{document.execCommand('copy');toast('已复制结果码 '+r.result_code);}catch(err){toast('复制失败，请手动复制',1);}
+        ta.remove();
+      });}else{copy.disabled=true;copy.textContent='—';}
+      tdCopy.appendChild(copy);
+      tr.innerHTML='';
+      var tds=[t,r.identity_label||'—',wname,(r.temp!=null?r.temp+'℃':'—')];
+      tds.forEach(function(txt){var td=document.createElement('td');td.textContent=txt;tr.appendChild(td);});
+      tr.appendChild(tdCode);tr.appendChild(tdCopy);
+      table.appendChild(tr);
+    });
+    box.appendChild(table);
+  }
 
   function loadAll(){api('stats').then(function(d){if(d&&d.ok)renderStats(d.stats);});loadList();}
 
