@@ -423,10 +423,12 @@ Deno.serve(async (req) => {
   let questions: any[] | null = null;
   let limited = false;
   const dailyLimit = parseInt(Deno.env.get("AI_DAILY_LIMIT") ?? "500", 10) || 500;
+  const AI_FETCH_LIMIT = parseInt(Deno.env.get("AI_FETCH_LIMIT") ?? "5", 10) || 5; // 每码终身 AI 生成次数预算（封顶算力消耗）
   const { data: okKey } = await supabase.rpc("ai_acquire", { p_bucket: "k:" + kh, p_window_seconds: 300, p_max: 2 });
   const { data: okGlobal } = await supabase.rpc("ai_acquire", { p_bucket: "g", p_window_seconds: 60, p_max: 20 });
   const { data: okDay } = await supabase.rpc("ai_acquire", { p_bucket: "ai-day", p_window_seconds: 86400, p_max: dailyLimit });
-  limited = okKey !== true || okGlobal !== true || okDay !== true;
+  const { data: okCap } = await supabase.rpc("ai_acquire", { p_bucket: "qcap:" + kh, p_window_seconds: 86400 * 365, p_max: AI_FETCH_LIMIT });
+  limited = okKey !== true || okGlobal !== true || okDay !== true || okCap !== true;
   if (!limited) {
     try {
       let raw = await callDeepSeek(label, 0.9);

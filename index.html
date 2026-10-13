@@ -178,7 +178,7 @@
 </style>
 </head>
 <body>
-  <div id="verTag" style="position:fixed;bottom:4px;right:6px;font-size:10px;color:rgba(20,40,70,.30);z-index:9999;pointer-events:none;background:rgba(255,255,255,.7);padding:1px 6px;border-radius:6px;">v-ai-1013-G</div>
+  <div id="verTag" style="position:fixed;bottom:4px;right:6px;font-size:10px;color:rgba(20,40,70,.30);z-index:9999;pointer-events:none;background:rgba(255,255,255,.7);padding:1px 6px;border-radius:6px;">v-ai-1013-H</div>
   <div class="bg" aria-hidden="true">
     <div class="glow g1"></div><div class="glow g2"></div><div class="glow g3"></div>
     <div class="cloud-bg"><div class="cb c1"></div><div class="cb c2"></div><div class="cb c3"></div><div class="cb c4"></div></div>
@@ -353,17 +353,22 @@
   function verifyKey(raw){
     var cleaned=(raw||'').trim().toUpperCase().replace(/\s+/g,'');
     if(cleaned.length<6){return Promise.resolve({ok:false,msg:'密钥格式不正确，请检查后重试'});}
+    var devTok='';
+    try{devTok=localStorage.getItem('mw_device_token')||'';}catch(e){}
     return fetch(SUPABASE_URL+'/functions/v1/verify-key',{
       method:'POST',
       headers:{'Content-Type':'application/json','apikey':SUPABASE_ANON,'Authorization':'Bearer '+SUPABASE_ANON},
-      body:JSON.stringify({key:cleaned,device_id:DEVICE_ID})
+      body:JSON.stringify({key:cleaned,device_id:DEVICE_ID,device_token:devTok})
     }).then(function(r){return r.json();}).then(function(d){
       if(d&&d.ok){
         // 校验成功后只保留短期会话票据，不再持有明文密钥；hash 仅用于分享邀请定位
-        try{sessionStorage.setItem('mw_ticket',d.ticket);if(d.hash)sessionStorage.setItem('mw_hash',d.hash);}catch(e){}
+        try{
+          sessionStorage.setItem('mw_ticket',d.ticket);if(d.hash)sessionStorage.setItem('mw_hash',d.hash);
+          if(d.device_token)localStorage.setItem('mw_device_token',d.device_token); // 服务端签发的设备令牌，二次登录凭据
+        }catch(e){}
         return {ok:true,ticket:d.ticket,hash:d.hash||''};
       }
-      var map={invalid:'密钥无效，请检查后重试',used:'该密钥已使用过（一码一用），请重新购买',disabled:'该密钥已停用',no_key:'请输入测评密钥',bad_body:'密钥格式不正确，请检查后重试',expired:'该密钥已过期，请重新购买',device_limit:'该密钥已绑定过多设备，请使用已绑定设备',rate_limited:'尝试过于频繁，请稍后再试'};
+      var map={invalid:'密钥无效，请检查后重试',used:'该密钥已完成测评（一码一用），不可再次登录',disabled:'该密钥已停用',no_key:'请输入测评密钥',bad_body:'密钥格式不正确，请检查后重试',expired:'该密钥已过期，请重新购买',device_limit:'该密钥已绑定其他设备，请使用已绑定设备',no_device:'缺少设备标识，无法建立会话',no_device_token:'设备凭据缺失，请重新登录',device_token_invalid:'设备凭据无效，请重新登录',rate_limited:'尝试过于频繁，请稍后再试'};
       return {ok:false,msg:(d&&(map[d.code]||d.message))||'密钥无效，请检查后重试'};
     }).catch(function(){
       return {ok:false,msg:'网络异常，请检查网络后重试'};

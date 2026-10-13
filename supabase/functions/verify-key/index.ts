@@ -44,6 +44,12 @@ async function issueTicket(keyHash: string, deviceId: string): Promise<string> {
   const sig = await hmacHex(Deno.env.get("SESSION_SECRET") ?? "", payload);
   return payload + "." + sig;
 }
+// 服务端下发的设备令牌：随机、仅存哈希、作为"这台设备"的可信凭据（防止仅凭伪造 device_id 冒用他人设备）
+function randHex(n: number): string {
+  const b = new Uint8Array(n);
+  crypto.getRandomValues(b);
+  return Array.from(b).map((x) => x.toString(16).padStart(2, "0")).join("");
+}
 
 Deno.serve(async (req) => {
   const origin = req.headers.get("Origin") || "";
@@ -55,15 +61,18 @@ Deno.serve(async (req) => {
   }
 
   try {
-    let key = "", deviceId = "";
+    let key = "", deviceId = "", deviceToken = "";
     try {
       const body = await req.json();
       key = cleanKey(body.key);
       deviceId = String(body.device_id || "").trim().slice(0, 64);
+      deviceToken = String(body.device_token || "").trim().slice(0, 128);
     } catch {
       return respond(origin, 400, { ok: false, code: "bad_body" });
     }
     if (!key) return respond(origin, 400, { ok: false, code: "no_key" });
+    // 强制设备标识：device_id 为空则无法建立可信设备绑定（防绕过设备上限）
+    if (!deviceId) return respond(origin, 200, { ok: false, code: "no_device", message: "缺少设备标识，无法建立会话" });
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -107,13 +116,39 @@ Deno.serve(async (req) => {
     // ===== S2 有效期校验 =====
     if (row.expires_at && new Date(row.expires_at).getTime() < Date.now()) return onFailure("expired");
 
-    // ===== S2 设备上限：登记当前设备；超限则拒绝 =====
-    if (deviceId) {
-      const { data: dev } = await supabase.rpc("license_register_device", { p_key_hash: kh, p_device: deviceId });
-      if (dev?.reason === "device_limit") {
-        return respond(origin, 200, { ok: false, code: "device_limit", limit: dev.limit });
+    // ===== 设备绑定 + 服务端设备令牌（防仅凭伪造 device_id 冒用他人设备） =====
+    // 首次/旧设备：签发随机 device_token（仅存哈希）并返回明文给客户端，后续重登必须带它
+    // 已绑定设备：二次登录必须提供与库存哈希匹配的 device_token，否则拒绝
+    let newDeviceToken = "";
+    const { data: dev } = await supabase.rpc("license_register_device", { p_key_hash: kh, p_device: deviceId });
+    if (dev?.reason === "device_limit") {
+      return respond(origin, 200, { ok: false, code: "device_limit", limit: dev.limit });
+    }
+    if (dev?.reason === "no_key") return respond(origin, 500, { ok: false, code: "server" });
+    {
+      const { data: devRow } = await supabase
+        .from("license_devices").select("device_token_hash").eq("key_hash", kh).eq("device_id", deviceId).maybeSingle();
+      const storedHash = devRow?.device_token_hash || null;
+      if (!storedHash) {
+        // 新设备（或历史无令牌设备）：签发令牌并哈希入库
+        newDeviceToken = randHex(24);
+        const h = await hmacHex(Deno.env.get("HASH_SECRET") ?? "", "devtok:" + newDeviceToken);
+        const { data: upd } = await supabase
+          .from("license_devices").update({ device_token_hash: h })
+          .eq("key_hash", kh).eq("device_id", deviceId).eq("device_token_hash", null)
+          .select("key_hash");
+        // 并发下若已被其他请求抢先签发：不返回令牌，客户端需再次登录
+        if (!upd || upd.length === 0) newDeviceToken = "";
+      } else {
+        // 已绑定设备：必须携带匹配的令牌
+        if (!deviceToken) {
+          return respond(origin, 200, { ok: false, code: "no_device_token", message: "设备凭据缺失，请重新登录" });
+        }
+        const h = await hmacHex(Deno.env.get("HASH_SECRET") ?? "", "devtok:" + deviceToken);
+        if (h !== storedHash) {
+          return respond(origin, 200, { ok: false, code: "device_token_invalid", message: "设备凭据无效，请重新登录" });
+        }
       }
-      if (dev?.reason === "no_key") return respond(origin, 500, { ok: false, code: "server" });
     }
 
     // 一码一用判定改为「完成测试后才作废」：登录本身不消耗密钥。
@@ -125,7 +160,8 @@ Deno.serve(async (req) => {
     // 签发短期会话票据（含 key_hash / device_id / 过期时间，HMAC 签名）；get-questions 改验票据
     const ticket = await issueTicket(kh, deviceId);
     // hash=key_hash：仅用于分享邀请定位（HMAC 哈希，非明文密钥、非认证凭证），前端据此生成邀请链接
-    return respond(origin, 200, { ok: true, first, ticket, hash: kh });
+    // device_token：仅在签发时返回一次，客户端持久化用于二次登录的设备凭据
+    return respond(origin, 200, { ok: true, first, ticket, hash: kh, device_token: newDeviceToken || undefined });
   } catch (err) {
     return respond(origin, 500, { ok: false, code: "server" });
   }
