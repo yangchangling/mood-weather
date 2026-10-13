@@ -178,7 +178,7 @@
 </style>
 </head>
 <body>
-  <div id="verTag" style="position:fixed;bottom:4px;right:6px;font-size:10px;color:rgba(20,40,70,.30);z-index:9999;pointer-events:none;background:rgba(255,255,255,.7);padding:1px 6px;border-radius:6px;">v-ai-1013-E</div>
+  <div id="verTag" style="position:fixed;bottom:4px;right:6px;font-size:10px;color:rgba(20,40,70,.30);z-index:9999;pointer-events:none;background:rgba(255,255,255,.7);padding:1px 6px;border-radius:6px;">v-ai-1013-F</div>
   <div class="bg" aria-hidden="true">
     <div class="glow g1"></div><div class="glow g2"></div><div class="glow g3"></div>
     <div class="cloud-bg"><div class="cb c1"></div><div class="cb c2"></div><div class="cb c3"></div><div class="cb c4"></div></div>
@@ -1440,7 +1440,7 @@
     document.body.appendChild(ov);
     show();
   }
-  // AI 个性化深度报告（分页渲染：总览 / 板块 / 盲区 / 行动+本周 / 金句+查询码）
+  // AI 个性化深度报告（分页渲染：总览 / 板块 / 底色与优势 / 反差 / 建议 / 金句）
   function drawAIReport(rep,w,key,identity){
     var pages=[];
     function wrapList(ctx,lines,y){
@@ -1451,52 +1451,91 @@
       });
       return y;
     }
+    function drawScene(ctx,scene,y){
+      if(!scene)return y;
+      var used=wrapText(ctx,scene,76,y+40,640,26,3);
+      var blockH=used*26+34;
+      ctx.fillStyle='#EEF4FB';ctx.fillRect(54,y-10,692,blockH);
+      ctx.fillStyle='#1F3A5F';ctx.font='700 15px sans-serif';ctx.fillText('· 场景里的你',76,y+18);
+      ctx.fillStyle='#40536E';ctx.font='500 16px sans-serif';
+      wrapText(ctx,scene,76,y+44,640,26,3);
+      return y+blockH+18;
+    }
     function drawBlock(ctx,sec,y){
       y=reportSectionTitle(ctx,y,sec.t||'');
-      return wrapList(ctx,sec.c||[],y)+14;
+      y=drawScene(ctx,sec.scene||'',y);
+      var lines=sec.c||[];
+      var concl=lines.length?lines[lines.length-1]:'';
+      var body=lines.slice(0,Math.max(0,lines.length-1));
+      y=wrapList(ctx,body,y);
+      if(concl){
+        y+=6;
+        ctx.fillStyle='#3F83D8';
+        var usedc=wrapText(ctx,concl,60,y,680,28,2);
+        y+=usedc*28+14;
+      }
+      return y;
     }
-    // P1 总览 + 一句话总印象 + 深度概括
-    var p1=reportCanvas(1200);var c1=p1.ctx;reportHeader(c1,420,'我的情绪气象报告',identity?('身份 · '+identity):'我的心情天气',key);
-    c1.fillStyle='#FFFFFF';c1.fillRect(0,420,800,780);
-    var y1=reportSectionTitle(c1,482,'一句话总印象');
-    y1=reportBody(c1,y1,w.desc||'',5);
+    // P1 总览：hook 大字 + 一句话总印象 + 深度概括
+    var p1=reportCanvas(1280);var c1=p1.ctx;reportHeader(c1,420,'我的情绪气象报告',identity?('身份 · '+identity):'我的心情天气',key);
+    c1.fillStyle='#FFFFFF';c1.fillRect(0,420,800,860);
+    var hook=rep.hook||'';
+    c1.fillStyle='#1F3A5F';c1.font='800 32px sans-serif';
+    var usedHook=wrapText(c1,hook,60,500,680,44,2);
+    var y1=500+usedHook*44+12;
+    c1.fillStyle='#3F83D8';c1.font='600 15px sans-serif';c1.fillText('—— 这是今天的你',60,y1);y1+=46;
+    y1=reportSectionTitle(c1,y1,'一句话总印象');
+    y1=reportBody(c1,y1,w.desc||'',4);
     y1=reportSectionTitle(c1,y1,'这段日子里的你（深度概括）');
-    y1=reportBody(c1,y1,rep.summary||'',8);
+    y1=reportBody(c1,y1,rep.summary||'',6);
     c1.fillStyle='#9AA9BD';c1.font='400 15px sans-serif';c1.fillText('本报告基于你的 8 题作答逐份生成 · 仅供自我探索与娱乐，非专业心理评估',60,y1+14);
     pages.push({dataUrl:p1.cv.toDataURL('image/png'),label:'我的情绪总览'});
-    // P2~ 板块（每页 2 个板块）
+    // P2~ 板块（每页 2 个）
     var secs=rep.sections||[];
-    for(var i=0;i<secs.length;i+=2){
+    for(var i=0;i<secs.length&&i<4;i+=2){
       var chunk=secs.slice(i,i+2);
-      var pc=reportCanvas(1260);var cc=pc.ctx;reportHeader(cc,150,'你的情绪深度解读','让这几次选择，回答你真实的自己',key);
+      var pc=reportCanvas(1380);var cc=pc.ctx;reportHeader(cc,150,'你的情绪深度解读','让这几次选择，回答你真实的自己',key);
       var yb=210;
-      chunk.forEach(function(sec){yb=drawBlock(cc,sec,yb);});
-      cc.fillStyle='#9AA9BD';cc.font='400 15px sans-serif';cc.fillText('情绪气象台 · 仅供自我探索与娱乐，非专业心理评估',60,1240);
+      chunk.forEach(function(sec){yb=drawBlock(cc,sec,yb);yb+=20;});
+      cc.fillStyle='#9AA9BD';cc.font='400 15px sans-serif';cc.fillText('情绪气象台 · 仅供自我探索与娱乐，非专业心理评估',60,1360);
       pages.push({dataUrl:pc.cv.toDataURL('image/png'),label:'情绪深度解读('+(chunk.map(function(s){return s.t;}).join('·'))+')'});
     }
-    // 盲区页（一句话点醒，突出）
-    var pb=reportCanvas(1200);var cb=pb.ctx;reportHeader(cb,150,'你还没看见的自己','你的情绪盲区',key);
-    var yb2=reportSectionTitle(cb,210,'· 你常常没察觉的一点');
-    cb.fillStyle='#1F3A5F';cb.font='600 24px sans-serif';
-    var usedb=wrapText(cb,rep.blindspot||'',70,270,660,40,6);
-    yb2=270+usedb*40+30;
-    cb.fillStyle='#9AA9BD';cb.font='400 15px sans-serif';cb.fillText('看见盲区，是变好的第一步 · 仅供自我探索与娱乐',70,yb2+10);
-    pages.push({dataUrl:pb.cv.toDataURL('image/png'),label:'你的情绪盲区'});
-    // 建议 + 本周挑战页
-    var pa=reportCanvas(1300);var ca=pa.ctx;reportHeader(ca,150,'给你的行动建议','今天就能做的 5 件小事',key);
-    var ya=reportSectionTitle(ca,210,'· 5 条个性化建议');
+    // 第5板块 + 核心优势 + 进阶方向 页
+    if(secs.length>4){
+      var p5=reportCanvas(1320);var c5=p5.ctx;reportHeader(c5,150,'你的情绪深度解读','最后一层，你的底色',key);
+      var y5=drawBlock(c5,secs[4],210)+20;
+      y5=reportSectionTitle(c5,y5,'你的核心优势');
+      y5=reportBody(c5,y5,rep.strength||'',4);
+      y5=reportSectionTitle(c5,y5,'你的进阶方向');
+      y5=reportBody(c5,y5,rep.growth||'',4);
+      c5.fillStyle='#9AA9BD';c5.font='400 15px sans-serif';c5.fillText('情绪气象台 · 仅供自我探索与娱乐，非专业心理评估',60,1300);
+      pages.push({dataUrl:p5.cv.toDataURL('image/png'),label:'你的底色与优势'});
+    }
+    // 反差页：别人眼里的你 vs 真实的你
+    var pb=reportCanvas(1150);var cb=pb.ctx;reportHeader(cb,150,'别人眼里的你 vs 真实的你','反差，才是最真实的你',key);
+    var yb2=reportSectionTitle(cb,220,'· 你藏在反差里的真相');
+    cb.fillStyle='#1F3A5F';cb.font='700 26px sans-serif';
+    var usedb=wrapText(cb,rep.shadow||'',70,280,660,40,5);
+    yb2=280+usedb*40+30;
+    cb.fillStyle='#9AA9BD';cb.font='400 15px sans-serif';cb.fillText('看见反差，是认识自己的开始 · 仅供自我探索与娱乐',70,yb2+10);
+    pages.push({dataUrl:pb.cv.toDataURL('image/png'),label:'别人眼里的你vs真实的你'});
+    // 盲区 + 建议 + 本周 页
+    var pa=reportCanvas(1340);var ca=pa.ctx;reportHeader(ca,150,'给你的行动建议','今天就能做的 5 件小事',key);
+    var ya=reportSectionTitle(ca,210,'· 你还没察觉的一点（盲区）');
+    ya=reportBody(ca,ya,rep.blindspot||'',4);
+    ya=reportSectionTitle(ca,ya,'· 5 条个性化建议');
     ca.fillStyle='#5A6B82';ca.font='500 17px sans-serif';
     (rep.advice||[]).forEach(function(a,j){ca.fillText((j+1)+'. '+a,60,ya);ya+=32;});ya+=16;
     ya=reportSectionTitle(ca,ya,'· 本周只做一件事');
     ya=reportBody(ca,ya,rep.week||'',4);
-    ca.fillStyle='#9AA9BD';ca.font='400 15px sans-serif';ca.fillText('情绪气象台 · 仅供自我探索与娱乐，非专业心理评估',60,1280);
-    pages.push({dataUrl:pa.cv.toDataURL('image/png'),label:'行动建议'});
+    ca.fillStyle='#9AA9BD';ca.font='400 15px sans-serif';ca.fillText('情绪气象台 · 仅供自我探索与娱乐，非专业心理评估',60,1320);
+    pages.push({dataUrl:pa.cv.toDataURL('image/png'),label:'行动建议与盲区'});
     // 金句 + 查询码页
-    var pq=reportCanvas(1200);var cq=pq.ctx;reportHeader(cq,150,'送给此刻的你','把这句话，也送给想懂你的人',key);
-    cq.fillStyle='#24304A';cq.font='700 26px sans-serif';cq.textAlign='center';
-    var usedq=wrapTextCenter(cq,rep.quote||'',400,260,640,44,4);
+    var pq=reportCanvas(1250);var cq=pq.ctx;reportHeader(cq,150,'送给此刻的你','把这句话，也送给想懂你的人',key);
+    cq.fillStyle='#24304A';cq.font='700 28px sans-serif';cq.textAlign='center';
+    var usedq=wrapTextCenter(cq,rep.quote||'',400,280,640,46,4);
     cq.textAlign='left';
-    var yq=260+usedq*44+40;
+    var yq=280+usedq*46+40;
     cq.fillStyle='#24304A';cq.font='800 19px sans-serif';cq.fillText('结果查询码',60,yq);yq+=34;
     cq.fillStyle='#1F3A5F';cq.font='700 26px sans-serif';cq.fillText(window.__resultCode||'',60,yq);yq+=36;
     cq.fillStyle='#9AA9BD';cq.font='400 15px sans-serif';cq.fillText('保存测评记录可回顾每题作答 · 仅供自我探索与娱乐，非专业心理评估',60,yq);
