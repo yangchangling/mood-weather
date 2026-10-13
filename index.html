@@ -178,7 +178,7 @@
 </style>
 </head>
 <body>
-  <div id="verTag" style="position:fixed;bottom:4px;right:6px;font-size:10px;color:rgba(20,40,70,.30);z-index:9999;pointer-events:none;background:rgba(255,255,255,.7);padding:1px 6px;border-radius:6px;">v-ai-1013-D</div>
+  <div id="verTag" style="position:fixed;bottom:4px;right:6px;font-size:10px;color:rgba(20,40,70,.30);z-index:9999;pointer-events:none;background:rgba(255,255,255,.7);padding:1px 6px;border-radius:6px;">v-ai-1013-E</div>
   <div class="bg" aria-hidden="true">
     <div class="glow g1"></div><div class="glow g2"></div><div class="glow g3"></div>
     <div class="cloud-bg"><div class="cb c1"></div><div class="cb c2"></div><div class="cb c3"></div><div class="cb c4"></div></div>
@@ -877,6 +877,9 @@
     window.__questions=state.questions.slice(0,8).map(function(q){return {title:q.title,options:q.options.map(function(o){return o.text;})};});
     window.__answers=(state.answers||[]).slice(0,8);
     renderResultUI(w, topKey, state.identity, false);
+    // 首次评测：AI 报告由后端生成需约数秒，返回前禁用报告按钮，避免用户提前点击拿到空报告回退模板
+    var brInit=document.getElementById('btn-report');
+    if(brInit){brInit.disabled=true;brInit.textContent='报告生成中…';}
     submitResult(state.identity,parseInt(w.temp,10),topKey);
   }
   // 展示结果查询码卡片（首次评测返回或二次进入均调用）
@@ -910,6 +913,9 @@
       if(d&&d.ok){
         if(d.report)window.__report=d.report;
         if(d.result_code)showResultCodeCard(d.result_code);
+        // AI 报告已就绪，恢复报告按钮可点
+        var brReady=document.getElementById('btn-report');
+        if(brReady){brReady.disabled=false;brReady.textContent='完整情绪报告';}
         // 持久化报告 + 结果码 + 作答快照，供「完整情绪报告」在会话状态丢失时也能从本地恢复 AI 报告
         try{
           localStorage.setItem('mood_report_v1',JSON.stringify({
@@ -929,7 +935,12 @@
           if(txt)txt.textContent='今天和你心情最像的有 '+sim.count+' 人'+(sim.top_identity?('，其中最多的是「'+sim.top_identity+'」'):'')+(typeof sim.temp_min==='number'?'，情绪温度集中在 '+sim.temp_min+'°C ~ '+sim.temp_max+'°C':'')+'。';
         }
       }else if(d&&d.code==='invalid_key'){clearTicket();go('intro');}
-    }).catch(function(){});
+      var brCatch=document.getElementById('btn-report');
+      if(brCatch){brCatch.disabled=false;brCatch.textContent='完整情绪报告';}
+    }).catch(function(){
+      var brErr=document.getElementById('btn-report');
+      if(brErr){brErr.disabled=false;brErr.textContent='完整情绪报告';}
+    });
   }
 
   /* ===== 再测 / 分享 ===== */
@@ -1170,6 +1181,8 @@
     if(wj.report)window.__report=wj.report;
     if(Array.isArray(wj.questions))window.__questions=wj.questions;
     if(Array.isArray(wj.answers))window.__answers=wj.answers;
+    var brReentry=document.getElementById('btn-report');
+    if(brReentry){brReentry.disabled=false;brReentry.textContent='完整情绪报告';}
     state.reentry=true;
     showResultCodeCard(code);
     document.getElementById('result-note').textContent='已从历史结果恢复，可重新下载你的天气卡、完整报告与查询码。';
