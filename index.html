@@ -1287,10 +1287,38 @@
   function reportSectionTitle(ctx,y,t){ctx.fillStyle='#24304A';ctx.font='800 21px sans-serif';ctx.fillText(t,60,y);return y+36;}
   function reportBody(ctx,y,text,maxLines){ctx.fillStyle='#5A6B82';ctx.font='500 18px sans-serif';var used=wrapText(ctx,text,60,y,680,30,maxLines||6);return y+used*30+16;}
   function drawReport(){
-    var meta=window.__weatherMeta||{},key=meta.topKey||'sky',w=meta.w||{},identity=meta.identity||'',deep=REPORT_DEEP[key]||{};
+    var meta=window.__weatherMeta||{},key=meta.topKey||'sky',w=meta.w||{},identity=meta.identity||'';
     // AI 深度报告优先：基于真实作答生成，有分析、有结论、每份不同
     var rep=window.__report;
     if(rep&&rep.summary&&Array.isArray(rep.sections)&&rep.sections.length){drawAIReport(rep,w,key,identity);return;}
+    // 本地无 AI 报告但有结果码 → 自动从后端按结果码恢复（规避"首次提交后 report 丢失"导致回退模板的问题）
+    var rc=window.__resultCode;
+    if(rc){
+      var btn=document.getElementById('btn-report');
+      if(btn)btn.textContent='报告生成中…';
+      fetch(SUPABASE_URL+'/functions/v1/get-result',{
+        method:'POST',headers:{'Content-Type':'application/json','apikey':SUPABASE_ANON,'Authorization':'Bearer '+SUPABASE_ANON},
+        body:JSON.stringify({result_code:rc})
+      }).then(function(r){return r.json();}).then(function(d){
+        if(btn)btn.textContent='完整情绪报告';
+        if(d&&d.ok){
+          var wj=(d.result&&d.result.weather)||{};
+          var r2=wj.report;
+          if(r2&&r2.summary&&Array.isArray(r2.sections)&&r2.sections.length){
+            window.__report=r2;
+            if(Array.isArray(wj.questions))window.__questions=wj.questions;
+            if(Array.isArray(wj.answers))window.__answers=wj.answers;
+            drawAIReport(r2,w,key,identity);return;
+          }
+        }
+        renderTemplateReport(meta,key,w,identity);
+      }).catch(function(){if(btn)btn.textContent='完整情绪报告';renderTemplateReport(meta,key,w,identity);});
+      return;
+    }
+    renderTemplateReport(meta,key,w,identity);
+  }
+  function renderTemplateReport(meta,key,w,identity){
+    var deep=REPORT_DEEP[key]||{};
     var pages=[];
     // P1 我的情绪天气
     var p1=reportCanvas(1140);var c1=p1.ctx;reportHeader(c1,420,'我的情绪气象报告',identity?('身份 · '+identity):'我的心情天气',key);
