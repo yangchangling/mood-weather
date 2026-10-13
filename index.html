@@ -933,20 +933,23 @@
       ctx.beginPath();ctx.arc(80,120,120,0,Math.PI*2);ctx.fill();
       ctx.beginPath();ctx.arc(540,760,150,0,Math.PI*2);ctx.fill();
       ctx.textAlign='center';ctx.textBaseline='middle';
-      ctx.fillStyle=inkSoft;ctx.font='600 26px sans-serif';ctx.fillText('我在情绪气象台测出了',300,96);
-      if(img){ctx.drawImage(img,235,128,130,130);}
-      ctx.fillStyle=ink;ctx.font='800 52px sans-serif';ctx.fillText(w.type,300,330);
-      ctx.fillStyle=inkSoft;ctx.font='600 28px sans-serif';
-      ctx.fillText(state.identity?(state.identity+' 的天空'):(w.temp+' · 心情指数'),300,392);
+      ctx.fillStyle=inkSoft;ctx.font='600 26px sans-serif';ctx.fillText('我在情绪气象台测出了',300,92);
+      if(img){ctx.drawImage(img,235,126,130,130);}
+      ctx.fillStyle=ink;ctx.font='800 52px sans-serif';ctx.fillText(w.type,300,306);
+      ctx.fillStyle=inkSoft;ctx.font='600 32px sans-serif';ctx.fillText(w.temp,300,362);
+      ctx.fillStyle=ink;ctx.font='700 24px sans-serif';
+      ctx.fillText(state.identity?('身份 · '+state.identity):'我的专属天气',300,408);
+      ctx.fillStyle=ink;ctx.font='500 21px sans-serif';
+      wrapText(ctx,w.line||'',300,452,440,28,2);
       ctx.strokeStyle=dark?'rgba(31,58,95,.18)':'rgba(255,255,255,.4)';ctx.lineWidth=2;
-      ctx.beginPath();ctx.moveTo(180,446);ctx.lineTo(420,446);ctx.stroke();
-      ctx.fillStyle=ink;ctx.font='800 46px sans-serif';ctx.fillText('你，是什么天气？',300,520);
-      ctx.fillStyle=inkSoft;ctx.font='500 26px sans-serif';ctx.fillText('8 道题 · 2 分钟 · 专属天气卡',300,578);
-      ctx.fillStyle=dark?'rgba(255,255,255,.85)':'rgba(255,255,255,.2)';rr(ctx,70,650,460,150,24);ctx.fill();
-      ctx.fillStyle=ink;ctx.font='700 24px sans-serif';ctx.fillText('点击 / 复制链接，一起测',300,698);
-      ctx.fillStyle=dark?'#2C6BA0':'#FFFFFF';ctx.font='800 22px sans-serif';ctx.fillText(inviteUrl(),300,752);
-      ctx.fillStyle=inkSoft;ctx.font='500 18px sans-serif';ctx.fillText('看看你今天的心情天气',300,782);
-      ctx.fillStyle=inkSoft;ctx.font='600 20px sans-serif';ctx.fillText('情绪气象台 · 仅供自我探索',300,852);
+      ctx.beginPath();ctx.moveTo(180,556);ctx.lineTo(420,556);ctx.stroke();
+      ctx.fillStyle=ink;ctx.font='800 46px sans-serif';ctx.fillText('你，是什么天气？',300,616);
+      ctx.fillStyle=inkSoft;ctx.font='500 26px sans-serif';ctx.fillText('8 道题 · 2 分钟，一起来测你的心情',300,668);
+      ctx.fillStyle=dark?'rgba(255,255,255,.85)':'rgba(255,255,255,.2)';rr(ctx,70,700,460,150,24);ctx.fill();
+      ctx.fillStyle=ink;ctx.font='700 24px sans-serif';ctx.fillText('点击 / 复制链接，一起测',300,748);
+      ctx.fillStyle=dark?'#2C6BA0':'#FFFFFF';ctx.font='800 22px sans-serif';ctx.fillText(inviteUrl(),300,798);
+      ctx.fillStyle=inkSoft;ctx.font='500 18px sans-serif';ctx.fillText('看看你今天的心情天气',300,830);
+      ctx.fillStyle=inkSoft;ctx.font='600 20px sans-serif';ctx.fillText('情绪气象台 · 分享你的今日心情',300,864);
     }
   }
 
