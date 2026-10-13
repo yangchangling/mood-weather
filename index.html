@@ -967,7 +967,7 @@
   /* 个人天气卡：完整还原结果页卡片（身份/温度/类型/描述/标签/TOP占比/别人眼中的你） */
   function drawWeatherCard(){
     var meta=window.__weatherMeta||{},key=meta.topKey||'sky',w=meta.w||{};
-    var cv=document.createElement('canvas');cv.width=600;cv.height=900;
+    var cv=document.createElement('canvas');cv.width=600;cv.height=980;
     var ctx=cv.getContext('2d');
     var colors=POSTER_GRAD[key]||POSTER_GRAD.sky,dark=!!POSTER_DARK[key];
     var ink=dark?'#1F3A5F':'#FFFFFF',inkSoft=dark?'rgba(31,58,95,.72)':'rgba(255,255,255,.92)';
@@ -985,12 +985,12 @@
     var svgStr='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="'+(dark?'#1F3A5F':'#FFFFFF')+'" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">'+String(ICONS[key]||'')+'</svg>';
     var img=new Image();
     function paint(){
-      ctx.drawImage(img,235,136,130,130);
-      ctx.fillStyle=ink;ctx.font='800 50px sans-serif';ctx.fillText(w.type||'',300,314);
-      ctx.fillStyle=inkSoft;ctx.font='600 30px sans-serif';ctx.fillText(w.temp||'',300,368);
-      ctx.fillStyle=ink;ctx.font='500 22px sans-serif';wrapText(ctx,w.desc||'',300,424,460,32,2);
+      ctx.drawImage(img,235,140,130,130);
+      ctx.fillStyle=ink;ctx.font='800 50px sans-serif';ctx.fillText(w.type||'',300,300);
+      ctx.fillStyle=inkSoft;ctx.font='600 30px sans-serif';ctx.fillText(w.temp||'',300,354);
+      ctx.fillStyle=ink;ctx.font='500 22px sans-serif';wrapText(ctx,w.desc||'',300,404,460,30,2);
       // 标签 chips
-      var tags=w.tags||[],tx=188,ty=502;
+      var tags=w.tags||[],tx=188,ty=484;
       ctx.textAlign='left';
       tags.slice(0,4).forEach(function(t){
         var tw=ctx.measureText(t).width;
@@ -1000,24 +1000,26 @@
         tx+=tw+38+14;
       });
       ctx.textAlign='center';
+      // 金句
+      ctx.fillStyle=ink;ctx.font='500 21px sans-serif';wrapText(ctx,w.line||'',300,546,440,29,2);
       // 分隔线
       ctx.strokeStyle=dark?'rgba(31,58,95,.18)':'rgba(255,255,255,.4)';ctx.lineWidth=2;
-      ctx.beginPath();ctx.moveTo(180,566);ctx.lineTo(420,566);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(180,612);ctx.lineTo(420,612);ctx.stroke();
       // 人群占比两行
-      ctx.fillStyle=ink;ctx.font='500 20px sans-serif';wrapText(ctx,w.pop||'',300,606,440,29,2);
-      ctx.fillStyle=inkSoft;ctx.font='500 20px sans-serif';wrapText(ctx,w.pop2||'',300,646,440,29,2);
+      ctx.fillStyle=ink;ctx.font='500 20px sans-serif';wrapText(ctx,w.pop||'',300,648,440,28,2);
+      ctx.fillStyle=inkSoft;ctx.font='500 20px sans-serif';wrapText(ctx,w.pop2||'',300,688,440,28,2);
       // TOP 占比
-      ctx.fillStyle=ink;ctx.font='800 26px sans-serif';ctx.fillText('TOP '+w.pct+'%',300,698);
+      ctx.fillStyle=ink;ctx.font='800 26px sans-serif';ctx.fillText('TOP '+w.pct+'%',300,742);
       // 别人眼中的你 / 本质上的你
       ctx.fillStyle=dark?'rgba(255,255,255,.85)':'rgba(255,255,255,.2)';
-      rr(ctx,70,736,220,112,18);rr(ctx,310,736,220,112,18);ctx.fill();
-      ctx.fillStyle=ink;ctx.font='700 19px sans-serif';ctx.fillText('别人眼中的你',180,760);
-      ctx.fillStyle=inkSoft;ctx.font='400 18px sans-serif';wrapText(ctx,w.other||'',180,792,196,24,2);
-      ctx.fillStyle=ink;ctx.font='700 19px sans-serif';ctx.fillText('本质上的你',420,760);
-      ctx.fillStyle=inkSoft;ctx.font='400 18px sans-serif';wrapText(ctx,w.essence||'',420,792,196,24,2);
+      rr(ctx,70,774,220,130,18);rr(ctx,310,774,220,130,18);ctx.fill();
+      ctx.fillStyle=ink;ctx.font='700 19px sans-serif';ctx.fillText('别人眼中的你',180,800);
+      ctx.fillStyle=inkSoft;ctx.font='400 18px sans-serif';wrapText(ctx,w.other||'',180,834,196,24,2);
+      ctx.fillStyle=ink;ctx.font='700 19px sans-serif';ctx.fillText('本质上的你',420,800);
+      ctx.fillStyle=inkSoft;ctx.font='400 18px sans-serif';wrapText(ctx,w.essence||'',420,834,196,24,2);
       // 底部
-      ctx.fillStyle=ink;ctx.font='700 20px sans-serif';ctx.fillText('保存到相册，分享我的今日天气',300,886);
-      ctx.fillStyle=inkSoft;ctx.font='500 15px sans-serif';ctx.fillText('情绪气象台 · 仅供自我探索与娱乐',300,914);
+      ctx.fillStyle=ink;ctx.font='700 20px sans-serif';ctx.fillText('保存到相册，分享我的今日天气',300,932);
+      ctx.fillStyle=inkSoft;ctx.font='500 15px sans-serif';ctx.fillText('情绪气象台 · 仅供自我探索与娱乐',300,962);
       showImageToSave(cv.toDataURL('image/png'),'情绪气象台-天气卡.png');
     }
     img.onload=function(){ctx.drawImage(img,235,136,130,130);paint();};
